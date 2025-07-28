@@ -1,9 +1,8 @@
 const { Telegraf } = require("telegraf");
+const path = require("path");
 
-// Вставь сюда свой токен от BotFather
 const bot = new Telegraf("8147782034:AAEeS1tXZxeR919ZECGl9aEI0-AOlQrTlM4");
 
-// Обработка команды /start
 bot.start((ctx) => {
   ctx.reply(`
 🇺🇿 Bot tez orada ishga tushadi!  
@@ -14,14 +13,15 @@ Yangi imkoniyatlar va qulayliklar bilan sizni kutmoqda.
 
 📢 Kuzatishda davom eting / Следите за новостями!
   `);
+
+  // Отправка PDF-файла из проекта
+  return ctx.replyWithDocument({ source: path.join(__dirname, "Инструкция Smart Dunyo Pay.pdf") });
 });
 
-// Запуск бота
 bot
   .launch()
   .then(() => console.log("🤖 Бот успешно запущен"))
   .catch((err) => console.error("Ошибка при запуске:", err));
 
-// Чтобы бот не выключался при деплое (например, на сервере)
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
