@@ -2,24 +2,32 @@ const { Telegraf, Markup } = require("telegraf");
 const path = require("path");
 
 const bot = new Telegraf("8147782034:AAEeS1tXZxeR919ZECGl9aEI0-AOlQrTlM4");
-const ADMIN_CHAT_ID = -4929636803; // ID вашей группы
+const ADMIN_CHAT_ID = -4929636803;
+const ADMIN_ID = 5292280353; // Вставь сюда свой Telegram ID
 
-const userStates = new Map(); // Состояния пользователей
+const userStates = new Map();     // Временное состояние (step)
+const userProfiles = new Map();   // Имя, номер, язык и вопрос
+const pendingReplies = new Map(); // Кто и кому отвечает
 
-const prompts = {
-  askName: "🇺🇿 Iltimos, ismingizni yozing.\n🇷🇺 Пожалуйста, введите своё имя.",
-  askPhone: "🇺🇿 Iltimos, telefon raqamingizni yuboring.\n🇷🇺 Пожалуйста, отправьте свой номер телефона.",
-  thanks: "✅ Rahmat! Savolingiz yuborildi. Tez orada siz bilan bog'lanamiz.\n\n✉️ Вы также можете задать новый вопрос, если потребуется.",
-  repeatButton: "✏️ Yangi savol berish / Задать новый вопрос",
-  sendContactButton: "📱 Telefon raqamini yuborish / Отправить номер"
-};
-
-// /start
+// Команда /start
 bot.start(async (ctx) => {
+  userStates.set(ctx.from.id, { step: "language" });
+
+  await ctx.reply("Tilni tanlang / Выберите язык:", Markup.keyboard([
+    ["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"]
+  ]).resize());
+});
+
+// Выбор языка
+bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (ctx) => {
+  const lang = ctx.message.text.includes("O'zbek") ? "uz" : "ru";
+  userProfiles.set(ctx.from.id, { lang });
   userStates.set(ctx.from.id, { step: "waiting_question" });
 
   await ctx.reply(
-    `🇺🇿 Smart Dunyo Pay platformasiga xush kelibsiz!\nIltimos, savolingizni yozing.\n\n🇷🇺 Добро пожаловать на платформу Smart Dunyo Pay!\nПожалуйста, напишите свой вопрос.`
+    lang === "uz"
+      ? "Savolingizni yozing, iltimos."
+      : "Пожалуйста, напишите свой вопрос."
   );
 
   await ctx.replyWithDocument({
@@ -28,50 +36,73 @@ bot.start(async (ctx) => {
   });
 });
 
-// Кнопка "задать вопрос заново"
-bot.hears(prompts.repeatButton, async (ctx) => {
-  userStates.set(ctx.from.id, { step: "waiting_question" });
-  await ctx.reply("🇺🇿 Savolingizni yozing\n🇷🇺 Напишите свой вопрос");
-});
-
-// Получение текста
+// Текстовые сообщения
 bot.on("text", async (ctx) => {
   const state = userStates.get(ctx.from.id);
+  const profile = userProfiles.get(ctx.from.id) || {};
   const text = ctx.message.text;
+
+  // Админ отвечает на вопрос
+  if (pendingReplies.has(ctx.from.id)) {
+    const { userId, lang } = pendingReplies.get(ctx.from.id);
+    pendingReplies.delete(ctx.from.id);
+
+    await ctx.telegram.sendMessage(
+      userId,
+      lang === "uz"
+        ? `📬 Sizga javob:\n\n${text}`
+        : `📬 Вам ответили:\n\n${text}`
+    );
+    await ctx.reply("✅ Ответ отправлен пользователю.");
+    return;
+  }
 
   if (!state) return;
 
-  if (state.step === "waiting_question") {
-    state.question = text;
-    state.step = "waiting_name";
-    userStates.set(ctx.from.id, state);
-    await ctx.reply(prompts.askName);
-  } else if (state.step === "waiting_name") {
-    state.name = text;
-    state.step = "waiting_phone";
-    userStates.set(ctx.from.id, state);
+  const lang = profile.lang || "uz";
+
+  // Новый вопрос
+  if (text === "✏️ Yangi savol berish / Задать новый вопрос") {
+    userStates.set(ctx.from.id, { step: "waiting_question" });
     await ctx.reply(
-      prompts.askPhone,
+      lang === "uz" ? "Yangi savolingizni yozing:" : "Пожалуйста, напишите новый вопрос:"
+    );
+    return;
+  }
+
+  if (state.step === "waiting_question") {
+    profile.question = text;
+    userProfiles.set(ctx.from.id, profile);
+    userStates.set(ctx.from.id, { step: "waiting_name" });
+
+    await ctx.reply(lang === "uz" ? "Ismingizni yozing:" : "Введите своё имя:");
+  } else if (state.step === "waiting_name") {
+    profile.name = text;
+    userProfiles.set(ctx.from.id, profile);
+    userStates.set(ctx.from.id, { step: "waiting_phone" });
+
+    await ctx.reply(
+      lang === "uz" ? "Telefon raqamingizni yuboring:" : "Отправьте номер телефона:",
       Markup.keyboard([
-        Markup.button.contactRequest(prompts.sendContactButton),
-      ])
-        .oneTime()
-        .resize()
+        [Markup.button.contactRequest(lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер")]
+      ]).resize().oneTime()
     );
   }
 });
 
-// Получение контакта
+// Контакт пользователя
 bot.on("contact", async (ctx) => {
   const state = userStates.get(ctx.from.id);
   if (!state || state.step !== "waiting_phone") return;
 
-  const phone = ctx.message.contact.phone_number;
-  const name = state.name;
-  const question = state.question;
-  const userId = ctx.from.id;
+  const profile = userProfiles.get(ctx.from.id);
+  profile.phone = ctx.message.contact.phone_number;
+  userProfiles.set(ctx.from.id, profile);
+  userStates.delete(ctx.from.id);
 
-  const message = `
+  const { name, phone, question, lang } = profile;
+
+  const groupMessage = `
 📩 Yangi savol / Новый вопрос:
 
 🧑 Ismi / Имя: ${name}
@@ -79,47 +110,48 @@ bot.on("contact", async (ctx) => {
 ❓ Savol / Вопрос:
 ${question}
 
-#USER${userId}
+#USER${ctx.from.id}
 `;
 
-  // Отправка в группу
-  await ctx.telegram.sendMessage(ADMIN_CHAT_ID, message);
-
-  await ctx.reply(prompts.thanks, Markup.keyboard([
-    [prompts.repeatButton]
+  await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, Markup.keyboard([
+    ["📩 Ответить на вопрос"]
   ]).resize());
 
-  userStates.delete(ctx.from.id);
+  await ctx.reply(
+    lang === "uz"
+      ? "✅ Rahmat! Savolingiz yuborildi. Tez orada siz bilan bog'lanamiz."
+      : "✅ Спасибо! Ваш вопрос отправлен. Мы скоро с вами свяжемся.",
+    Markup.keyboard([
+      ["✏️ Yangi savol berish / Задать новый вопрос"]
+    ]).resize()
+  );
 });
 
-// Ответ из группы (реплай)
-bot.on("message", async (ctx) => {
-  const isGroup = ctx.chat.id === ADMIN_CHAT_ID;
+// Кнопка "Ответить на вопрос"
+bot.hears("📩 Ответить на вопрос", async (ctx) => {
+  if (ctx.chat.id !== ADMIN_CHAT_ID || ctx.from.id !== ADMIN_ID) return;
+
   const reply = ctx.message.reply_to_message;
-  const adminMessage = ctx.message.text;
+  if (!reply || !reply.text) return;
 
-  if (!isGroup || !reply || !adminMessage) return;
-
-  const text = reply.text;
-  if (!text) return;
-
-  // Поиск userId
-  const match = text.match(/#USER(\d+)/);
-  if (!match) return;
-
-  const userId = match[1];
-
-  try {
-    await ctx.telegram.sendMessage(
-      userId,
-      `📬 Sizga javob:\n\n${adminMessage}`
-    );
-  } catch (err) {
-    console.error("❌ Не удалось отправить ответ пользователю:", err);
+  const match = reply.text.match(/#USER(\d+)/);
+  if (!match) {
+    await ctx.reply("❗ Не удалось найти ID пользователя.");
+    return;
   }
+
+  const userId = Number(match[1]);
+  const profile = userProfiles.get(userId);
+  if (!profile) {
+    await ctx.reply("❗ Пользователь не найден.");
+    return;
+  }
+
+  pendingReplies.set(ctx.from.id, { userId, lang: profile.lang });
+  await ctx.reply("✍️ Напишите ответ пользователю:");
 });
 
-bot.launch().then(() => console.log("🤖 Бот запущен"));
-
+// Запуск
+bot.launch().then(() => console.log("🤖 Бот успешно запущен"));
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
