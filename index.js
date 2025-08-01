@@ -29,8 +29,6 @@ const autoDeleteMessage = async (ctx, chatId, messageId, delay = 10000) => {
 };
 
 // /start
-// /start
-// /start
 bot.start(async (ctx) => {
   try {
     userStates.set(ctx.from.id, { step: "language" });
@@ -94,7 +92,7 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
                 lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
               ),
             ],
-            [Markup.button.text("+998901234567")], // Пример формата
+            [Markup.button.text("+998901234567")],
           ])
             .resize()
             .oneTime()
@@ -218,7 +216,7 @@ bot.on("text", async (ctx) => {
               lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
             ),
           ],
-          [Markup.button.text("+998901234567")], // Пример формата
+          [Markup.button.text("+998901234567")],
         ])
           .resize()
           .oneTime()
@@ -388,9 +386,75 @@ ${chatText || "Нет сообщений"}
   }
 }
 
+// Команда /unanswered (только для админ-чата)
 bot.command("unanswered", async (ctx) => {
-  if (ctx.chat.id !== ADMIN_CHAT_ID) return;
+  if (ctx.chat.id !== ADMIN_CHAT_ID) {
+    await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+    return;
+  }
   await showUnansweredCount(ctx);
+});
+
+// Команда /sort (только для админ-чата)
+bot.command("sort", async (ctx) => {
+  if (ctx.chat.id !== ADMIN_CHAT_ID) {
+    await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+    return;
+  }
+
+  try {
+    // Собираем все вопросы с их userId
+    const allQuestions = [];
+    for (const [userId, profile] of userProfiles.entries()) {
+      profile.questions.forEach((question, index) => {
+        allQuestions.push({
+          userId,
+          questionIndex: index,
+          question,
+          timestamp: question.chat[question.chat.length - 1].timestamp,
+        });
+      });
+    }
+
+    // Сортировка: сначала отвеченные, потом неотвеченные, внутри по свежести (от новых к старым)
+    allQuestions.sort((a, b) => {
+      if (a.question.answered !== b.question.answered) {
+        return a.question.answered ? -1 : 1; // Отвеченные выше
+      }
+      return new Date(b.timestamp) - new Date(a.timestamp); // Новые выше
+    });
+
+    // Удаляем все существующие карточки
+    for (const { userId, questionIndex } of allQuestions) {
+      const profile = userProfiles.get(userId);
+      const question = profile.questions[questionIndex];
+      if (question.adminMsgId) {
+        try {
+          await ctx.telegram.deleteMessage(ADMIN_CHAT_ID, question.adminMsgId);
+          question.adminMsgId = null;
+          userProfiles.set(userId, profile);
+        } catch (error) {
+          console.error(
+            `Ошибка удаления карточки ${question.adminMsgId}:`,
+            error
+          );
+        }
+      }
+    }
+
+    // Создаем новые карточки в отсортированном порядке
+    for (const { userId, questionIndex } of allQuestions) {
+      await duplicateAdminCard(ctx, userId, questionIndex);
+    }
+
+    const sentMsg = await ctx.reply("✅ Вопросы отсортированы: отвеченные сверху, неотвеченные снизу по свежести.");
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+  } catch (error) {
+    console.error(`Ошибка при сортировке вопросов:`, error);
+    await ctx.reply("❌ Произошла ошибка при сортировке.");
+  }
 });
 
 // Запуск бота
