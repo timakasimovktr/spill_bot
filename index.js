@@ -148,7 +148,16 @@ bot.on("text", async (ctx) => {
         console.error(`Ошибка при удалении сообщения ${adminMsgId}:`, error);
       }
 
-      await ctx.reply("✅ Ответ отправлен пользователю и добавлен в карточку.");
+      // Отправляем временное сообщение и удаляем через 5 секунд
+      const sent = await ctx.reply("✅ Ответ отправлен пользователю и добавлен в карточку.");
+      setTimeout(async () => {
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, sent.message_id);
+        } catch (error) {
+          console.error(`Ошибка при удалении временного сообщения ${sent.message_id}:`, error);
+        }
+      }, 5000);
+
       pendingReplies.delete(ctx.from.id);
       return;
     }
@@ -166,7 +175,7 @@ bot.on("text", async (ctx) => {
         await ctx.reply(
           lang === "uz"
             ? `Yangi savolingizni yozing (ism: ${profile.name}, telefon: ${profile.phone}):`
-            : `Пожалуйста, напишите новый вопрос (имя: ${profile.name}, телефон: ${profile.phone}):`,
+            : `Пожалуйста, напишите свой вопрос (имя: ${profile.name}, телефон: ${profile.phone}):`,
           Markup.removeKeyboard()
         );
       } else {
@@ -191,13 +200,30 @@ bot.on("text", async (ctx) => {
       return;
     }
 
+    // Проверяем, можно ли обработать текст как новый вопрос
+    if (!state && profile.name && profile.phone) {
+      if (!text.trim()) {
+        await ctx.reply(
+          profile.lang === "uz"
+            ? "Iltimos, savolingizni matn ko'rinishida yozing."
+            : "Пожалуйста, напишите свой вопрос текстом."
+        );
+        return;
+      }
+
+      profile.questions.push({ question: text, answers: [], timestamp: formatDate() });
+      userProfiles.set(ctx.from.id, profile);
+      await handleCompleteProfile(ctx, profile);
+      return;
+    }
+
     if (!state) return;
 
     const lang = profile.lang || "uz";
 
     // Вопрос
     if (state.step === "waiting_question") {
-      if (!text.trim() || text === "Yangi savol berish / Задать новый вопрос") {
+      if (!text.trim()) {
         await ctx.reply(
           lang === "uz"
             ? "Iltimos, savolingizni matn ko'rinishida yozing."
@@ -325,26 +351,24 @@ async function updateAdminCard(userId, profile) {
     const { name, phone, lang, questions, adminMsgId } = profile;
 
     const questionsText = questions
-      .slice(-5) // Ограничиваем до 5 последних вопросов
+      .slice(-3) // Ограничиваем до 3 последних вопросов
       .map((q, index) => {
         const answersText = q.answers
           ? q.answers
-              .slice(-3) // Ограничиваем до 3 последних ответов
-              .map((a, aIndex) => `  ↪ [${a.timestamp}] ${a.text}`)
+              .slice(-2) // Ограничиваем до 2 последних ответов
+              .map((a) => `✅ [${a.timestamp}] ${a.text}`)
               .join("\n")
           : "Пока нет ответов";
-        return `${index + 1}. [${q.timestamp}] ${q.question}\n${answersText}`;
+        return `❓ [${q.timestamp}] ${q.question}\n${answersText}`;
       })
-      .join("\n\n");
+      .join("\n---\n");
 
     const groupMessage = `
-📩 Foydalanuvchi / Пользователь: ${name}
-📞 Telefon: ${phone}
+📩 ${name} (#USER${userId})
+📞 ${phone}
 
 ${questionsText}
-
-#USER${userId}
-    `;
+    `.trim();
 
     // Удаляем старую карточку, если она существует
     if (adminMsgId) {
