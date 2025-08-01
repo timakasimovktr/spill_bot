@@ -42,6 +42,8 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
     const profile = userProfiles.get(ctx.from.id) || { questions: [], lang };
     userProfiles.set(ctx.from.id, { ...profile, lang });
 
+    console.log(`Язык выбран для ${ctx.from.id}: ${lang}, профиль:`, profile);
+
     if (profile.name && profile.phone) {
       userStates.set(ctx.from.id, { step: "waiting_question" });
       await ctx.reply(
@@ -286,16 +288,19 @@ bot.on("text", async (ctx) => {
         return;
       }
 
-      console.log(`Сохранение имени "${text}" для ${ctx.from.id}`);
+      console.log(`Сохранение имени "${text}" для ${ctx.from.id}, профиль:`, profile);
       profile.name = text.trim();
       userProfiles.set(ctx.from.id, profile);
       userStates.set(ctx.from.id, { step: "waiting_phone" });
+      console.log(`Состояние для ${ctx.from.id} изменено на waiting_phone`);
 
+      // Разделяем отправку сообщения и клавиатуры для изоляции ошибок
       try {
         await ctx.reply(
-          lang === "uz"
-            ? "Telefon raqamingizni yuboring:"
-            : "Отправьте номер телефона:",
+          lang === "uz" ? "Telefon raqamingizni yuboring:" : "Отправьте номер телефона:"
+        );
+        await ctx.reply(
+          lang === "uz" ? "Iltimos, quyidagi tugmani bosing:" : "Пожалуйста, нажмите кнопку ниже:",
           Markup.keyboard([
             [
               Markup.button.contactRequest(
@@ -306,7 +311,6 @@ bot.on("text", async (ctx) => {
             .resize()
             .oneTime()
         );
-        console.log(`Состояние для ${ctx.from.id} изменено на waiting_phone`);
       } catch (error) {
         console.error(`Ошибка при запросе телефона для ${ctx.from.id}:`, error);
         await ctx.reply(
@@ -314,6 +318,8 @@ bot.on("text", async (ctx) => {
             ? "❌ Xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring."
             : "❌ Произошла ошибка. Пожалуйста, попробуйте снова."
         );
+        // Сбрасываем состояние, чтобы пользователь мог начать заново
+        userStates.set(ctx.from.id, { step: "language" });
       }
     }
     // Ручной номер телефона
