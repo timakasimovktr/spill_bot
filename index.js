@@ -3,17 +3,14 @@ const path = require("path");
 
 const bot = new Telegraf("8147782034:AAEeS1tXZxeR919ZECGl9aEI0-AOlQrTlM4");
 const ADMIN_CHAT_ID = -4742476473;
-const ADMIN_IDS = [693825152, 91913122];
 
 const userStates = new Map();
 const userProfiles = new Map();
 const pendingReplies = new Map();
 
 // Форматирование даты
-const formatDate = () => new Date().toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" });
-
-// Проверка админа
-const isAdmin = (userId) => ADMIN_IDS.includes(userId);
+const formatDate = () =>
+  new Date().toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" });
 
 // Автоудаление сообщений
 const autoDeleteMessage = async (ctx, chatId, messageId, delay = 10000) => {
@@ -24,15 +21,30 @@ const autoDeleteMessage = async (ctx, chatId, messageId, delay = 10000) => {
       });
     }, delay);
   } catch (error) {
-    console.error(`Ошибка при планировании удаления сообщения ${messageId}:`, error);
+    console.error(
+      `Ошибка при планировании удаления сообщения ${messageId}:`,
+      error
+    );
   }
 };
 
+// /start
+// /start
 // /start
 bot.start(async (ctx) => {
   try {
     userStates.set(ctx.from.id, { step: "language" });
 
+    // Отправка изображений по одному
+    const images = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.jpg", "7.jpg"];
+    for (const image of images) {
+      await ctx.replyWithPhoto(
+        { source: path.join(__dirname, image) },
+        { disable_notification: true }
+      );
+    }
+
+    // Отправка PDF
     await ctx.replyWithDocument({
       source: path.join(__dirname, "Инструкция Smart Dunyo Pay.pdf"),
       filename: "Smart Dunyo Pay - Yo‘riqnoma.pdf",
@@ -55,7 +67,9 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
     const profile = userProfiles.get(ctx.from.id) || { questions: [], lang };
 
     userProfiles.set(ctx.from.id, profile);
-    userStates.set(ctx.from.id, { step: profile.name ? "waiting_phone" : "waiting_name" });
+    userStates.set(ctx.from.id, {
+      step: profile.name ? "waiting_phone" : "waiting_name",
+    });
 
     await ctx.reply(
       lang === "uz"
@@ -67,7 +81,11 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
         : "Введите своё имя:",
       profile.name
         ? Markup.keyboard([
-            [Markup.button.contactRequest(lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер")],
+            [
+              Markup.button.contactRequest(
+                lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+              ),
+            ],
           ])
             .resize()
             .oneTime()
@@ -91,9 +109,7 @@ bot.on("contact", async (ctx) => {
     userStates.set(ctx.from.id, { step: "waiting_question" });
 
     await ctx.reply(
-      profile.lang === "uz"
-        ? "Savolingizni yozing:"
-        : "Напишите свой вопрос:",
+      profile.lang === "uz" ? "Savolingizni yozing:" : "Напишите свой вопрос:",
       Markup.removeKeyboard()
     );
   } catch (error) {
@@ -111,13 +127,8 @@ bot.on("text", async (ctx) => {
     let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
     const lang = profile.lang;
 
-    // Ответ админа (только после нажатия кнопки "Ответить")
+    // Ответ из группы (только после нажатия кнопки "Ответить")
     if (pendingReplies.has(userId)) {
-      if (!isAdmin(userId)) {
-        await ctx.reply("❌ У вас нет прав для ответа.");
-        return;
-      }
-
       const { targetUserId, questionIndex } = pendingReplies.get(userId);
       const targetProfile = userProfiles.get(targetUserId);
 
@@ -143,15 +154,15 @@ bot.on("text", async (ctx) => {
       const sentMsg = await ctx.reply("✅ Ответ отправлен пользователю.");
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
 
-      // Автоудаление текста ответа админа
+      // Автоудаление текста ответа
       await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
 
       pendingReplies.delete(userId);
       return;
     }
 
-    // Игнорируем сообщения админа в группе, если он не в режиме ответа
-    if (isAdmin(userId) && ctx.chat.id === ADMIN_CHAT_ID) {
+    // Игнорируем сообщения в группе, если пользователь не в режиме ответа
+    if (ctx.chat.id === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
       await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
       return;
     }
@@ -165,9 +176,15 @@ bot.on("text", async (ctx) => {
       userStates.set(userId, { step: "waiting_phone" });
 
       await ctx.reply(
-        lang === "uz" ? "Telefon raqamingizni yuboring:" : "Отправьте номер телефона:",
+        lang === "uz"
+          ? "Telefon raqamingizni yuboring:"
+          : "Отправьте номер телефона:",
         Markup.keyboard([
-          [Markup.button.contactRequest(lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер")],
+          [
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+            ),
+          ],
         ])
           .resize()
           .oneTime()
@@ -184,10 +201,18 @@ bot.on("text", async (ctx) => {
     } else if (state.step === "waiting_question" && text) {
       // Добавление сообщения в текущий вопрос или создание нового
       if (!profile.questions.length) {
-        profile.questions.push({ chat: [{ type: "question", text, timestamp: formatDate() }], answered: false, adminMsgId: null });
+        profile.questions.push({
+          chat: [{ type: "question", text, timestamp: formatDate() }],
+          answered: false,
+          adminMsgId: null,
+        });
       } else {
         profile.questions[0].chat = profile.questions[0].chat || [];
-        profile.questions[0].chat.push({ type: "question", text, timestamp: formatDate() });
+        profile.questions[0].chat.push({
+          type: "question",
+          text,
+          timestamp: formatDate(),
+        });
         profile.questions[0].answered = false; // Новый вопрос делает статус неотвеченным
       }
       userProfiles.set(userId, profile);
@@ -232,8 +257,8 @@ function hasUnansweredQuestions(chat) {
 bot.on("callback_query", async (ctx) => {
   try {
     const data = ctx.callbackQuery.data;
-    if (!data.startsWith("reply_") || !isAdmin(ctx.from.id)) {
-      await ctx.answerCbQuery("❌ У вас нет прав для ответа.");
+    if (!data.startsWith("reply_")) {
+      await ctx.answerCbQuery("❌ Неверное действие.");
       return;
     }
 
@@ -272,8 +297,8 @@ async function duplicateAdminCard(ctx, userId, questionIndex) {
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .slice(-10)
       .map((item) => {
-        const prefix = item.type === "question" ? "👤" : "🤖";
-        const text = item.text.length > 200 ? item.text.substring(0, 200) + "..." : item.text;
+        const prefix = item.type === "question" ? "👨‍🦰" : "🤖";
+        const text = item.text;
         return `<i>${item.timestamp}</i>\n${prefix} ${text}\n---`;
       })
       .join("\n");
@@ -301,24 +326,25 @@ ${chatText || "Нет сообщений"}
       try {
         await ctx.telegram.deleteMessage(ADMIN_CHAT_ID, question.adminMsgId);
       } catch (error) {
-        console.error(`Ошибка удаления карточки ${question.adminMsgId}:`, error);
+        console.error(
+          `Ошибка удаления карточки ${question.adminMsgId}:`,
+          error
+        );
       }
     }
 
     // Создание новой карточки с HTML-разметкой
-    const sent = await ctx.telegram.sendMessage(
-      ADMIN_CHAT_ID,
-      groupMessage,
-      {
-        parse_mode: "HTML",
-        reply_markup: Markup.inlineKeyboard([
-          Markup.button.callback(
-            profile.lang === "uz" ? `📩 Javob berish ${statusEmoji}` : `📩 Ответить ${statusEmoji}`,
-            `reply_${userId}_${questionIndex}`
-          ),
-        ]).reply_markup,
-      }
-    );
+    const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
+      parse_mode: "HTML",
+      reply_markup: Markup.inlineKeyboard([
+        Markup.button.callback(
+          profile.lang === "uz"
+            ? `📩 Javob berish ${statusEmoji}`
+            : `📩 Ответить ${statusEmoji}`,
+          `reply_${userId}_${questionIndex}`
+        ),
+      ]).reply_markup,
+    });
 
     question.adminMsgId = sent.message_id;
     userProfiles.set(userId, profile);
