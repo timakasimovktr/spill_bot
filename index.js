@@ -123,7 +123,6 @@ bot.on("text", async (ctx) => {
 
     // Проверяем, является ли отправитель админом
     if (ctx.from.id === ADMIN_ID) {
-      // Обрабатываем только если админ в состоянии ответа
       if (pendingReplies.has(ctx.from.id)) {
         const { userId, lang, adminMsgId } = pendingReplies.get(ctx.from.id);
 
@@ -178,7 +177,6 @@ bot.on("text", async (ctx) => {
         pendingReplies.delete(ctx.from.id);
         return;
       }
-      // Игнорируем другие сообщения админа
       console.log(`Сообщение админа ${ctx.from.id} проигнорировано: не в состоянии ответа`);
       return;
     }
@@ -292,15 +290,10 @@ bot.on("text", async (ctx) => {
       profile.name = text.trim();
       userProfiles.set(ctx.from.id, profile);
       userStates.set(ctx.from.id, { step: "waiting_phone" });
-      console.log(`Состояние для ${ctx.from.id} изменено на waiting_phone`);
 
-      // Разделяем отправку сообщения и клавиатуры для изоляции ошибок
       try {
         await ctx.reply(
-          lang === "uz" ? "Telefon raqamingizni yuboring:" : "Отправьте номер телефона:"
-        );
-        await ctx.reply(
-          lang === "uz" ? "Iltimos, quyidagi tugmani bosing:" : "Пожалуйста, нажмите кнопку ниже:",
+          lang === "uz" ? "Telefon raqamingizni yuboring:" : "Отправьте номер телефона:",
           Markup.keyboard([
             [
               Markup.button.contactRequest(
@@ -311,6 +304,7 @@ bot.on("text", async (ctx) => {
             .resize()
             .oneTime()
         );
+        console.log(`Состояние для ${ctx.from.id} изменено на waiting_phone`);
       } catch (error) {
         console.error(`Ошибка при запросе телефона для ${ctx.from.id}:`, error);
         await ctx.reply(
@@ -318,7 +312,6 @@ bot.on("text", async (ctx) => {
             ? "❌ Xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring."
             : "❌ Произошла ошибка. Пожалуйста, попробуйте снова."
         );
-        // Сбрасываем состояние, чтобы пользователь мог начать заново
         userStates.set(ctx.from.id, { step: "language" });
       }
     }
@@ -362,15 +355,13 @@ bot.on("callback_query", async (ctx) => {
 
     if (!data.startsWith("reply_")) return;
 
-    // Проверяем, что callback от админа
     if (ctx.from.id !== ADMIN_ID) {
       await ctx.answerCbQuery("❗ Только админ может отвечать на вопросы.");
       return;
     }
 
-    const [_, userId] = data.split("_");
-    const userIdNum = Number(userId);
-    const profile = userProfiles.get(userIdNum);
+    const userId = Number(data.split("_")[1]);
+    const profile = userProfiles.get(userId);
 
     if (!profile || !profile.questions.length) {
       await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
@@ -378,7 +369,7 @@ bot.on("callback_query", async (ctx) => {
     }
 
     pendingReplies.set(ctx.from.id, {
-      userId: userIdNum,
+      userId,
       lang: profile.lang,
       adminMsgId: ctx.message ? ctx.message.message_id : null,
     });
