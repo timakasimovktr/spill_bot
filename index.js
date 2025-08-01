@@ -36,7 +36,15 @@ bot.start(async (ctx) => {
     userStates.set(ctx.from.id, { step: "language" });
 
     // Отправка изображений по одному
-    const images = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.jpg", "7.jpg"];
+    const images = [
+      "1.png",
+      "2.png",
+      "3.png",
+      "4.png",
+      "5.png",
+      "6.jpg",
+      "7.jpg",
+    ];
     for (const image of images) {
       await ctx.replyWithPhoto(
         { source: path.join(__dirname, image) },
@@ -74,10 +82,10 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
     await ctx.reply(
       lang === "uz"
         ? profile.name
-          ? "Telefon raqamingizni yuboring:"
+          ? "Telefon raqamingizni +998901234567 formatida kiriting:"
           : "Ismingizni yozing:"
         : profile.name
-        ? "Отправьте номер телефона:"
+        ? "Введите номер телефона в формате +998901234567:"
         : "Введите своё имя:",
       profile.name
         ? Markup.keyboard([
@@ -86,6 +94,7 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
                 lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
               ),
             ],
+            [Markup.button.text("+998901234567")], // Пример формата
           ])
             .resize()
             .oneTime()
@@ -189,7 +198,7 @@ bot.on("text", async (ctx) => {
           .resize()
           .oneTime()
       );
-    } else if (state.step === "waiting_phone" && /^\+?\d{7,15}$/.test(text)) {
+    } else if (state.step === "waiting_phone" && /^\+998\d{9}$/.test(text)) {
       profile.phone = text;
       userProfiles.set(userId, profile);
       userStates.set(userId, { step: "waiting_question" });
@@ -197,6 +206,22 @@ bot.on("text", async (ctx) => {
       await ctx.reply(
         lang === "uz" ? "Savolingizni yozing:" : "Напишите свой вопрос:",
         Markup.removeKeyboard()
+      );
+    } else if (state.step === "waiting_phone") {
+      await ctx.reply(
+        lang === "uz"
+          ? "Iltimos, telefon raqamingizni +998901234567 formatida kiriting:"
+          : "Пожалуйста, введите номер телефона в формате +998901234567:",
+        Markup.keyboard([
+          [
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+            ),
+          ],
+          [Markup.button.text("+998901234567")], // Пример формата
+        ])
+          .resize()
+          .oneTime()
       );
     } else if (state.step === "waiting_question" && text) {
       // Добавление сообщения в текущий вопрос или создание нового
@@ -285,6 +310,16 @@ bot.on("callback_query", async (ctx) => {
     await ctx.answerCbQuery("❌ Произошла ошибка.");
   }
 });
+
+async function showUnansweredCount(ctx) {
+  let count = 0;
+  for (const profile of userProfiles.values()) {
+    for (const question of profile.questions) {
+      if (!question.answered) count++;
+    }
+  }
+  await ctx.reply(`🔴 Неотвеченных вопросов: ${count}`);
+}
 
 // Дублирование карточки админа
 async function duplicateAdminCard(ctx, userId, questionIndex) {
