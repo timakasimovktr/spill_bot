@@ -106,59 +106,65 @@ bot.on("text", async (ctx) => {
     let profile = userProfiles.get(ctx.from.id) || { questions: [] };
     const text = ctx.message.text;
 
-    // Админ пишет ответ
-    if (pendingReplies.has(ctx.from.id)) {
-      const { userId, lang, adminMsgId } = pendingReplies.get(ctx.from.id);
+    // Проверяем, является ли отправитель админом
+    if (ctx.from.id === ADMIN_ID) {
+      // Обрабатываем только если админ в состоянии ответа
+      if (pendingReplies.has(ctx.from.id)) {
+        const { userId, lang, adminMsgId } = pendingReplies.get(ctx.from.id);
 
-      if (text === "Yangi savol berish / Задать новый вопрос") {
-        await ctx.reply(
-          "❗ Это кнопка, а не текст ответа. Напишите реальный ответ."
+        if (text === "Yangi savol berish / Задать новый вопрос") {
+          await ctx.reply(
+            "❗ Это кнопка, а не текст ответа. Напишите реальный ответ."
+          );
+          return;
+        }
+
+        const userProfile = userProfiles.get(userId);
+        if (!userProfile || !userProfile.questions.length) {
+          await ctx.reply("❗ Вопрос или пользователь не найден.");
+          pendingReplies.delete(ctx.from.id);
+          return;
+        }
+
+        // Сохраняем ответ для последнего вопроса
+        const question = userProfile.questions[userProfile.questions.length - 1];
+        question.answers = question.answers || [];
+        question.answers.push({ text, timestamp: formatDate() });
+        userProfiles.set(userId, userProfile);
+
+        // Отправляем ответ пользователю с указанием вопроса
+        await ctx.telegram.sendMessage(
+          userId,
+          lang === "uz"
+            ? `📬 Sizga javob (savol: ${question.question}):\n\n${text}`
+            : `📬 Вам ответили (вопрос: ${question.question}):\n\n${text}`
         );
-        return;
-      }
 
-      const userProfile = userProfiles.get(userId);
-      if (!userProfile || !userProfile.questions.length) {
-        await ctx.reply("❗ Вопрос или пользователь не найден.");
+        // Обновляем карточку в админском чате
+        await updateAdminCard(userId, userProfile);
+
+        // Удаляем сообщение админа
+        try {
+          await ctx.telegram.deleteMessage(ctx.chat.id, adminMsgId);
+        } catch (error) {
+          console.error(`Ошибка при удалении сообщения ${adminMsgId}:`, error);
+        }
+
+        // Отправляем временное сообщение и удаляем через 5 секунд
+        const sent = await ctx.reply("✅ Ответ отправлен пользователю и добавлен в карточку.");
+        setTimeout(async () => {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat.id, sent.message_id);
+          } catch (error) {
+            console.error(`Ошибка при удалении временного сообщения ${sent.message_id}:`, error);
+          }
+        }, 5000);
+
         pendingReplies.delete(ctx.from.id);
         return;
       }
-
-      // Сохраняем ответ для последнего вопроса
-      const question = userProfile.questions[userProfile.questions.length - 1];
-      question.answers = question.answers || [];
-      question.answers.push({ text, timestamp: formatDate() });
-      userProfiles.set(userId, userProfile);
-
-      // Отправляем ответ пользователю с указанием вопроса
-      await ctx.telegram.sendMessage(
-        userId,
-        lang === "uz"
-          ? `📬 Sizga javob (savol: ${question.question}):\n\n${text}`
-          : `📬 Вам ответили (вопрос: ${question.question}):\n\n${text}`
-      );
-
-      // Обновляем карточку в админском чате
-      await updateAdminCard(userId, userProfile);
-
-      // Удаляем сообщение админа
-      try {
-        await ctx.telegram.deleteMessage(ctx.chat.id, adminMsgId);
-      } catch (error) {
-        console.error(`Ошибка при удалении сообщения ${adminMsgId}:`, error);
-      }
-
-      // Отправляем временное сообщение и удаляем через 5 секунд
-      const sent = await ctx.reply("✅ Ответ отправлен пользователю и добавлен в карточку.");
-      setTimeout(async () => {
-        try {
-          await ctx.telegram.deleteMessage(ctx.chat.id, sent.message_id);
-        } catch (error) {
-          console.error(`Ошибка при удалении временного сообщения ${sent.message_id}:`, error);
-        }
-      }, 5000);
-
-      pendingReplies.delete(ctx.from.id);
+      // Игнорируем другие сообщения админа
+      console.log(`Сообщение админа ${ctx.from.id} проигнорировано: не в состоянии ответа`);
       return;
     }
 
@@ -316,6 +322,12 @@ bot.on("callback_query", async (ctx) => {
     console.log(`Callback query: ${data} от ${ctx.from.id}`);
 
     if (!data.startsWith("reply_")) return;
+
+    // Проверяем, что callback от админа
+    if (ctx.from.id !== ADMIN_ID) {
+      await ctx.answerCbQuery("❗ Только админ может отвечать на вопросы.");
+      return;
+    }
 
     const [_, userId] = data.split("_");
     const userIdNum = Number(userId);
