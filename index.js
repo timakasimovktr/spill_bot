@@ -388,6 +388,11 @@ ${chatText || "Нет сообщений"}
   }
 }
 
+bot.command("unanswered", async (ctx) => {
+  if (ctx.chat.id !== ADMIN_CHAT_ID) return;
+  await showUnansweredCount(ctx);
+});
+
 // Запуск бота
 bot.launch().then(() => console.log("🤖 Бот успешно запущен"));
 process.once("SIGINT", () => bot.stop("SIGINT"));
