@@ -311,6 +311,16 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
+async function showUnansweredCount(ctx) {
+  let count = 0;
+  for (const profile of userProfiles.values()) {
+    for (const question of profile.questions) {
+      if (!question.answered) count++;
+    }
+  }
+  await ctx.reply(`🔴 Неотвеченных вопросов: ${count}`);
+}
+
 // Дублирование карточки админа
 async function duplicateAdminCard(ctx, userId, questionIndex) {
   try {
