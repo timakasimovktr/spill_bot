@@ -39,10 +39,8 @@ bot.start(async (ctx) => {
 bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (ctx) => {
   try {
     const lang = ctx.message.text.includes("O'zbek") ? "uz" : "ru";
-    const profile = userProfiles.get(ctx.from.id) || { questions: [], lang };
+    const profile = userProfiles.get(ctx.from.id) || { questions: [] };
     userProfiles.set(ctx.from.id, { ...profile, lang });
-
-    console.log(`Язык выбран для ${ctx.from.id}: ${lang}, профиль:`, profile);
 
     if (profile.name && profile.phone) {
       userStates.set(ctx.from.id, { step: "waiting_question" });
@@ -84,11 +82,6 @@ bot.on("contact", async (ctx) => {
     if (!state || state.step !== "waiting_phone") return;
 
     const profile = userProfiles.get(ctx.from.id);
-    if (!profile) {
-      console.error(`Профиль не найден для ${ctx.from.id}`);
-      await ctx.reply("❌ Произошла ошибка. Пожалуйста, начните с /start.");
-      return;
-    }
     profile.phone = ctx.message.contact.phone_number;
     userProfiles.set(ctx.from.id, profile);
     userStates.set(ctx.from.id, { step: "waiting_question" });
@@ -110,19 +103,12 @@ bot.on("text", async (ctx) => {
   try {
     console.log(`Получен текст: "${ctx.message.text}" от ${ctx.from.id}`);
     let state = userStates.get(ctx.from.id);
-    let profile = userProfiles.get(ctx.from.id) || { questions: [], lang: "uz" };
+    let profile = userProfiles.get(ctx.from.id) || { questions: [] };
     const text = ctx.message.text;
-
-    // Проверяем наличие профиля и языка
-    if (!profile.lang) {
-      console.log(`Язык не найден для ${ctx.from.id}, устанавливаем uz по умолчанию`);
-      profile.lang = "uz";
-      userProfiles.set(ctx.from.id, profile);
-    }
-    const lang = profile.lang;
 
     // Проверяем, является ли отправитель админом
     if (ctx.from.id === ADMIN_ID) {
+      // Обрабатываем только если админ в состоянии ответа
       if (pendingReplies.has(ctx.from.id)) {
         const { userId, lang, adminMsgId } = pendingReplies.get(ctx.from.id);
 
@@ -177,6 +163,7 @@ bot.on("text", async (ctx) => {
         pendingReplies.delete(ctx.from.id);
         return;
       }
+      // Игнорируем другие сообщения админа
       console.log(`Сообщение админа ${ctx.from.id} проигнорировано: не в состоянии ответа`);
       return;
     }
@@ -185,6 +172,9 @@ bot.on("text", async (ctx) => {
     if (text === "Yangi savol berish / Задать новый вопрос") {
       console.log(`Обработка кнопки "Yangi savol berish" для ${ctx.from.id}: state=${JSON.stringify(state)}, profile=${JSON.stringify(profile)}`);
       pendingReplies.delete(ctx.from.id);
+      const lang = profile.lang || "uz";
+
+      userProfiles.set(ctx.from.id, { ...profile, lang });
 
       if (profile.name && profile.phone) {
         userStates.set(ctx.from.id, { step: "waiting_question" });
@@ -220,7 +210,7 @@ bot.on("text", async (ctx) => {
     if (!state && profile.name && profile.phone) {
       if (!text.trim()) {
         await ctx.reply(
-          lang === "uz"
+          profile.lang === "uz"
             ? "Iltimos, savolingizni matn ko'rinishida yozing."
             : "Пожалуйста, напишите свой вопрос текстом."
         );
@@ -233,10 +223,9 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    if (!state) {
-      console.log(`Нет состояния для ${ctx.from.id}, игнорируем`);
-      return;
-    }
+    if (!state) return;
+
+    const lang = profile.lang || "uz";
 
     // Вопрос
     if (state.step === "waiting_question") {
@@ -276,44 +265,24 @@ bot.on("text", async (ctx) => {
     }
     // Имя
     else if (state.step === "waiting_name") {
-      if (!text.trim()) {
-        console.log(`Пустое имя от ${ctx.from.id}, запрашиваем повторно`);
-        await ctx.reply(
-          lang === "uz"
-            ? "Iltimos, ismingizni matn ko'rinishida yozing."
-            : "Пожалуйста, введите своё имя текстом."
-        );
-        return;
-      }
-
-      console.log(`Сохранение имени "${text}" для ${ctx.from.id}, профиль:`, profile);
-      profile.name = text.trim();
+      profile.name = text;
       userProfiles.set(ctx.from.id, profile);
       userStates.set(ctx.from.id, { step: "waiting_phone" });
 
-      try {
-        await ctx.reply(
-          lang === "uz" ? "Telefon raqamingizni yuboring:" : "Отправьте номер телефона:",
-          Markup.keyboard([
-            [
-              Markup.button.contactRequest(
-                lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-              ),
-            ],
-          ])
-            .resize()
-            .oneTime()
-        );
-        console.log(`Состояние для ${ctx.from.id} изменено на waiting_phone`);
-      } catch (error) {
-        console.error(`Ошибка при запросе телефона для ${ctx.from.id}:`, error);
-        await ctx.reply(
-          lang === "uz"
-            ? "❌ Xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring."
-            : "❌ Произошла ошибка. Пожалуйста, попробуйте снова."
-        );
-        userStates.set(ctx.from.id, { step: "language" });
-      }
+      await ctx.reply(
+        lang === "uz"
+          ? "Telefon raqamingizni yuboring:"
+          : "Отправьте номер телефона:",
+        Markup.keyboard([
+          [
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+            ),
+          ],
+        ])
+          .resize()
+          .oneTime()
+      );
     }
     // Ручной номер телефона
     else if (state.step === "waiting_phone") {
@@ -338,7 +307,6 @@ bot.on("text", async (ctx) => {
     }
   } catch (error) {
     console.error(`Ошибка при обработке текста от ${ctx.from.id}:`, error);
-    const profile = userProfiles.get(ctx.from.id) || { lang: "uz" };
     await ctx.reply(
       profile.lang === "uz"
         ? "❌ Xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring."
@@ -355,13 +323,15 @@ bot.on("callback_query", async (ctx) => {
 
     if (!data.startsWith("reply_")) return;
 
+    // Проверяем, что callback от админа
     if (ctx.from.id !== ADMIN_ID) {
       await ctx.answerCbQuery("❗ Только админ может отвечать на вопросы.");
       return;
     }
 
-    const userId = Number(data.split("_")[1]);
-    const profile = userProfiles.get(userId);
+    const [_, userId] = data.split("_");
+    const userIdNum = Number(userId);
+    const profile = userProfiles.get(userIdNum);
 
     if (!profile || !profile.questions.length) {
       await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
@@ -369,7 +339,7 @@ bot.on("callback_query", async (ctx) => {
     }
 
     pendingReplies.set(ctx.from.id, {
-      userId,
+      userId: userIdNum,
       lang: profile.lang,
       adminMsgId: ctx.message ? ctx.message.message_id : null,
     });
@@ -392,11 +362,12 @@ async function updateAdminCard(userId, profile) {
   try {
     const { name, phone, lang, questions, adminMsgId } = profile;
 
-    // Отображаем все вопросы и ответы (без slice)
     const questionsText = questions
+      .slice(-3) // Ограничиваем до 3 последних вопросов
       .map((q, index) => {
         const answersText = q.answers
           ? q.answers
+              .slice(-2) // Ограничиваем до 2 последних ответов
               .map((a) => `✅ [${a.timestamp}] ${a.text}`)
               .join("\n")
           : "Пока нет ответов";
