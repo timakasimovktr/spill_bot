@@ -9,7 +9,7 @@ const userStates = new Map();
 const userProfiles = new Map();
 const pendingReplies = new Map();
 
-// Форматирование даты для вопросов и ответов
+// Форматирование даты для ответов
 function formatDate() {
   const now = new Date();
   return now.toLocaleString("ru-RU", { timeZone: "Asia/Tashkent" });
@@ -106,65 +106,81 @@ bot.on("text", async (ctx) => {
     let profile = userProfiles.get(ctx.from.id) || { questions: [] };
     const text = ctx.message.text;
 
-    // Проверяем, является ли отправитель админом
-    if (ctx.from.id === ADMIN_ID) {
-      // Обрабатываем только если админ в состоянии ответа
-      if (pendingReplies.has(ctx.from.id)) {
-        const { userId, lang, adminMsgId } = pendingReplies.get(ctx.from.id);
+    // Админ пишет ответ
+    if (pendingReplies.has(ctx.from.id)) {
+      const { userId, lang, adminMsgId, questionIndex } = pendingReplies.get(ctx.from.id);
 
-        if (text === "Yangi savol berish / Задать новый вопрос") {
-          await ctx.reply(
-            "❗ Это кнопка, а не текст ответа. Напишите реальный ответ."
-          );
-          return;
-        }
-
-        const userProfile = userProfiles.get(userId);
-        if (!userProfile || !userProfile.questions.length) {
-          await ctx.reply("❗ Вопрос или пользователь не найден.");
-          pendingReplies.delete(ctx.from.id);
-          return;
-        }
-
-        // Сохраняем ответ для последнего вопроса
-        const question = userProfile.questions[userProfile.questions.length - 1];
-        question.answers = question.answers || [];
-        question.answers.push({ text, timestamp: formatDate() });
-        userProfiles.set(userId, userProfile);
-
-        // Отправляем ответ пользователю с указанием вопроса
-        await ctx.telegram.sendMessage(
-          userId,
-          lang === "uz"
-            ? `📬 Sizga javob (savol: ${question.question}):\n\n${text}`
-            : `📬 Вам ответили (вопрос: ${question.question}):\n\n${text}`
+      if (text === "Yangi savol berish / Задать новый вопрос") {
+        await ctx.reply(
+          "❗ Это кнопка, а не текст ответа. Напишите реальный ответ."
         );
+        return;
+      }
 
-        // Обновляем карточку в админском чате
-        await updateAdminCard(userId, userProfile);
-
-        // Удаляем сообщение админа
-        try {
-          await ctx.telegram.deleteMessage(ctx.chat.id, adminMsgId);
-        } catch (error) {
-          console.error(`Ошибка при удалении сообщения ${adminMsgId}:`, error);
-        }
-
-        // Отправляем временное сообщение и удаляем через 5 секунд
-        const sent = await ctx.reply("✅ Ответ отправлен пользователю и добавлен в карточку.");
-        setTimeout(async () => {
-          try {
-            await ctx.telegram.deleteMessage(ctx.chat.id, sent.message_id);
-          } catch (error) {
-            console.error(`Ошибка при удалении временного сообщения ${sent.message_id}:`, error);
-          }
-        }, 5000);
-
+      const userProfile = userProfiles.get(userId);
+      if (!userProfile || !userProfile.questions[questionIndex]) {
+        await ctx.reply("❗ Вопрос или пользователь не найден.");
         pendingReplies.delete(ctx.from.id);
         return;
       }
-      // Игнорируем другие сообщения админа
-      console.log(`Сообщение админа ${ctx.from.id} проигнорировано: не в состоянии ответа`);
+
+      // Сохраняем ответ для конкретного вопроса
+      const question = userProfile.questions[questionIndex];
+      question.answers = question.answers || [];
+      question.answers.push({ text, timestamp: formatDate() });
+      question.answered = true;
+      userProfiles.set(userId, userProfile);
+
+      // Отправляем ответ пользователю с указанием вопроса
+      await ctx.telegram.sendMessage(
+        userId,
+        lang === "uz"
+          ? `📬 Sizga javob (savol: ${question.question}):\n\n${text}`
+          : `📬 Вам ответили (вопрос: ${question.question}):\n\n${text}`
+      );
+
+      // Обновляем сообщение с вопросом в админском чате
+      const answersText = question.answers
+        .slice(-5)
+        .map((answer, index) => `${index + 1}. [${answer.timestamp}] ${answer.text}`)
+        .join("\n");
+      const groupMessage = `
+📩 Savol #${questionIndex + 1} / Вопрос #${questionIndex + 1}:
+
+🧑 Ismi / Имя: ${userProfile.name}
+📞 Telefon: ${userProfile.phone}
+
+❓ Savol / Вопрос:
+${question.question}
+
+📬 Javoblar / Ответы:
+${answersText || "Пока нет ответов"}
+
+#USER${userId}
+      `;
+
+      await ctx.telegram.editMessageText(
+        ADMIN_CHAT_ID,
+        question.adminMsgId,
+        null,
+        groupMessage,
+        Markup.inlineKeyboard([
+          Markup.button.callback(
+            lang === "uz" ? "📩 Javob berish" : "📩 Ответить",
+            `reply_${userId}_${questionIndex}`
+          ),
+        ])
+      );
+
+      // Удаляем сообщение админа
+      try {
+        await ctx.telegram.deleteMessage(ctx.chat.id, adminMsgId);
+      } catch (error) {
+        console.error(`Ошибка при удалении сообщения ${adminMsgId}:`, error);
+      }
+
+      await ctx.reply("✅ Ответ отправлен пользователю и добавлен в сообщение с вопросом.");
+      pendingReplies.delete(ctx.from.id);
       return;
     }
 
@@ -181,7 +197,7 @@ bot.on("text", async (ctx) => {
         await ctx.reply(
           lang === "uz"
             ? `Yangi savolingizni yozing (ism: ${profile.name}, telefon: ${profile.phone}):`
-            : `Пожалуйста, напишите свой вопрос (имя: ${profile.name}, телефон: ${profile.phone}):`,
+            : `Пожалуйста, напишите новый вопрос (имя: ${profile.name}, телефон: ${profile.phone}):`,
           Markup.removeKeyboard()
         );
       } else {
@@ -206,30 +222,13 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    // Проверяем, можно ли обработать текст как новый вопрос
-    if (!state && profile.name && profile.phone) {
-      if (!text.trim()) {
-        await ctx.reply(
-          profile.lang === "uz"
-            ? "Iltimos, savolingizni matn ko'rinishida yozing."
-            : "Пожалуйста, напишите свой вопрос текстом."
-        );
-        return;
-      }
-
-      profile.questions.push({ question: text, answers: [], timestamp: formatDate() });
-      userProfiles.set(ctx.from.id, profile);
-      await handleCompleteProfile(ctx, profile);
-      return;
-    }
-
     if (!state) return;
 
     const lang = profile.lang || "uz";
 
     // Вопрос
     if (state.step === "waiting_question") {
-      if (!text.trim()) {
+      if (!text.trim() || text === "Yangi savol berish / Задать новый вопрос") {
         await ctx.reply(
           lang === "uz"
             ? "Iltimos, savolingizni matn ko'rinishida yozing."
@@ -238,11 +237,11 @@ bot.on("text", async (ctx) => {
         return;
       }
 
-      profile.questions.push({ question: text, answers: [], timestamp: formatDate() });
+      profile.questions.push({ question: text, answers: [], answered: false });
       userProfiles.set(ctx.from.id, profile);
 
       if (profile.name && profile.phone) {
-        await handleCompleteProfile(ctx, profile);
+        await handleCompleteProfile(ctx, profile, profile.questions.length - 1);
       } else {
         userStates.set(ctx.from.id, { step: profile.name ? "waiting_phone" : "waiting_name" });
         await ctx.reply(
@@ -323,17 +322,12 @@ bot.on("callback_query", async (ctx) => {
 
     if (!data.startsWith("reply_")) return;
 
-    // Проверяем, что callback от админа
-    if (ctx.from.id !== ADMIN_ID) {
-      await ctx.answerCbQuery("❗ Только админ может отвечать на вопросы.");
-      return;
-    }
-
-    const [_, userId] = data.split("_");
+    const [_, userId, questionIndex] = data.split("_");
     const userIdNum = Number(userId);
+    const questionIndexNum = Number(questionIndex);
     const profile = userProfiles.get(userIdNum);
 
-    if (!profile || !profile.questions.length) {
+    if (!profile || !profile.questions[questionIndexNum]) {
       await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
       return;
     }
@@ -342,89 +336,24 @@ bot.on("callback_query", async (ctx) => {
       userId: userIdNum,
       lang: profile.lang,
       adminMsgId: ctx.message ? ctx.message.message_id : null,
+      questionIndex: questionIndexNum,
     });
 
     await ctx.answerCbQuery();
-    const lastQuestion = profile.questions[profile.questions.length - 1];
-    await ctx.reply(
-      profile.lang === "uz"
-        ? `✍️ Savolga javob yozing (savol: ${lastQuestion.question}):`
-        : `✍️ Напишите ответ на вопрос (вопрос: ${lastQuestion.question}):`
-    );
+    await ctx.reply("✍️ Напишите ответ пользователю:");
   } catch (error) {
     console.error(`Ошибка при обработке callback_query от ${ctx.from.id}:`, error);
     await ctx.answerCbQuery("❌ Произошла ошибка.");
   }
 });
 
-// Функция: обновление карточки в админском чате
-async function updateAdminCard(userId, profile) {
-  try {
-    const { name, phone, lang, questions, adminMsgId } = profile;
-
-    const questionsText = questions
-      .slice(-3) // Ограничиваем до 3 последних вопросов
-      .map((q, index) => {
-        const answersText = q.answers
-          ? q.answers
-              .slice(-2) // Ограничиваем до 2 последних ответов
-              .map((a) => `✅ [${a.timestamp}] ${a.text}`)
-              .join("\n")
-          : "Пока нет ответов";
-        return `❓ [${q.timestamp}] ${q.question}\n${answersText}`;
-      })
-      .join("\n---\n");
-
-    const groupMessage = `
-📩 ${name} (#USER${userId})
-📞 ${phone}
-
-${questionsText}
-    `.trim();
-
-    // Удаляем старую карточку, если она существует
-    if (adminMsgId) {
-      try {
-        await bot.telegram.deleteMessage(ADMIN_CHAT_ID, adminMsgId);
-      } catch (error) {
-        console.error(`Ошибка при удалении старой карточки ${adminMsgId}:`, error);
-      }
-    }
-
-    // Создаём новую карточку
-    const sent = await bot.telegram.sendMessage(
-      ADMIN_CHAT_ID,
-      groupMessage,
-      Markup.inlineKeyboard([
-        Markup.button.callback(
-          lang === "uz" ? "📩 Javob berish" : "📩 Ответить",
-          `reply_${userId}`
-        ),
-      ])
-    );
-
-    profile.adminMsgId = sent.message_id;
-    userProfiles.set(userId, profile);
-
-    // Уведомляем админа о новом вопросе
-    if (questions[questions.length - 1].answers.length === 0) {
-      await bot.telegram.sendMessage(
-        ADMIN_CHAT_ID,
-        `🔔 Новый вопрос от ${name} (#USER${userId})`
-      );
-    }
-  } catch (error) {
-    console.error(`Ошибка при обновлении карточки для ${userId}:`, error);
-  }
-}
-
 // Функция: обработка заполненного профиля
-async function handleCompleteProfile(ctx, profile) {
+async function handleCompleteProfile(ctx, profile, questionIndex) {
   try {
-    const { name, phone, lang, questions } = profile;
-    const lastQuestion = questions[questions.length - 1];
+    const { name, phone, lang } = profile;
+    const question = profile.questions[questionIndex];
 
-    if (!name || !phone || !lastQuestion.question) {
+    if (!name || !phone || !question.question) {
       console.error(`Неполный профиль для ${ctx.from.id}:`, profile);
       await ctx.reply(
         lang === "uz"
@@ -434,9 +363,38 @@ async function handleCompleteProfile(ctx, profile) {
       return;
     }
 
-    await updateAdminCard(ctx.from.id, profile);
+    const groupMessage = `
+📩 Savol #${questionIndex + 1} / Вопрос #${questionIndex + 1}:
 
+🧑 Ismi / Имя: ${name}
+📞 Telefon: ${phone}
+
+❓ Savol / Вопрос:
+${question.question}
+
+📬 Javoblar / Ответы:
+Пока нет ответов
+
+#USER${ctx.from.id}
+    `;
+
+    const sent = await ctx.telegram.sendMessage(
+      ADMIN_CHAT_ID,
+      groupMessage,
+      Markup.inlineKeyboard([
+        Markup.button.callback(
+          lang === "uz" ? "📩 Javob berish" : "📩 Ответить",
+          `reply_${ctx.from.id}_${questionIndex}`
+        ),
+      ])
+    );
+
+    question.adminMsgId = sent.message_id;
+    question.answered = false;
+    question.answers = [];
+    userProfiles.set(ctx.from.id, profile);
     userStates.delete(ctx.from.id);
+
     await ctx.reply(
       lang === "uz"
         ? "✅ Rahmat! Savolingiz yuborildi. Tez orada siz bilan bog'lanamiz."
