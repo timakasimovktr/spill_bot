@@ -33,7 +33,6 @@ bot.start(async (ctx) => {
   try {
     userStates.set(ctx.from.id, { step: "language" });
 
-    // Отправка изображений по одному
     const images = [
       "1.png",
       "2.png",
@@ -50,7 +49,6 @@ bot.start(async (ctx) => {
       );
     }
 
-    // Отправка PDF
     await ctx.replyWithDocument({
       source: path.join(__dirname, "Инструкция Smart Dunyo Pay.pdf"),
       filename: "Smart Dunyo Pay - Yo‘riqnoma.pdf",
@@ -151,17 +149,11 @@ bot.on("text", async (ctx) => {
       question.answered = !hasUnansweredQuestions(question.chat);
       userProfiles.set(targetUserId, targetProfile);
 
-      // Уведомление пользователю (без префикса)
       await ctx.telegram.sendMessage(targetUserId, text);
+      await sortAndUpdateCards(ctx); // Сортировка после ответа
 
-      // Дублирование карточки
-      await duplicateAdminCard(ctx, targetUserId, questionIndex);
-
-      // Сообщение об успехе с автоудалением
       const sentMsg = await ctx.reply("✅ Ответ отправлен пользователю.");
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
-
-      // Автоудаление текста ответа
       await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
 
       pendingReplies.delete(userId);
@@ -170,13 +162,22 @@ bot.on("text", async (ctx) => {
 
     // Игнорируем сообщения в группе, если пользователь не в режиме ответа
     if (ctx.chat.id === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      if (!text.startsWith("/")) {
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+        return;
+      }
+      if (!["/unanswered", "/sort", "/help"].includes(text)) {
+        const sentMsg = await ctx.reply(
+          "❌ Неизвестная команда. Используйте /help для списка команд."
+        );
+        await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      }
       return;
     }
 
     if (!state) return;
 
-    // Обработка шагов пользователя
     if (state.step === "waiting_name") {
       profile.name = text;
       userProfiles.set(userId, profile);
@@ -222,7 +223,6 @@ bot.on("text", async (ctx) => {
           .oneTime()
       );
     } else if (state.step === "waiting_question" && text) {
-      // Добавление сообщения в текущий вопрос или создание нового
       if (!profile.questions.length) {
         profile.questions.push({
           chat: [{ type: "question", text, timestamp: formatDate() }],
@@ -236,13 +236,12 @@ bot.on("text", async (ctx) => {
           text,
           timestamp: formatDate(),
         });
-        profile.questions[0].answered = false; // Новый вопрос делает статус неотвеченным
+        profile.questions[0].answered = false;
       }
       userProfiles.set(userId, profile);
 
-      await duplicateAdminCard(ctx, userId, 0);
+      await sortAndUpdateCards(ctx); // Сортировка после нового вопроса
 
-      // Подтверждение с автоудалением
       const sentMsg = await ctx.reply(
         lang === "uz"
           ? "✅ Savol qabul qilindi. Tez orada javob beramiz."
@@ -310,22 +309,31 @@ bot.on("callback_query", async (ctx) => {
 });
 
 async function showUnansweredCount(ctx) {
-  let count = 0;
-  for (const profile of userProfiles.values()) {
-    for (const question of profile.questions) {
-      if (!question.answered) count++;
+  try {
+    console.log("Выполняется команда /unanswered");
+    let count = 0;
+    for (const profile of userProfiles.values()) {
+      for (const question of profile.questions) {
+        if (!question.answered) count++;
+      }
     }
+    const message = count > 0
+      ? `🔴 Неотвеченных вопросов: ${count}`
+      : "✅ Все вопросы отвечены!";
+    await ctx.reply(message);
+    console.log(`Команда /unanswered выполнена: ${message}`);
+  } catch (error) {
+    console.error("Ошибка в showUnansweredCount:", error);
+    await ctx.reply("❌ Ошибка при подсчете неотвеченных вопросов.");
   }
-  await ctx.reply(`🔴 Неотвеченных вопросов: ${count}`);
 }
 
-// Дублирование карточки админа
-async function duplicateAdminCard(ctx, userId, questionIndex) {
+// Создание одной карточки
+async function createAdminCard(ctx, userId, questionIndex) {
   try {
     const profile = userProfiles.get(userId);
     const question = profile.questions[questionIndex];
 
-    // Сортировка сообщений и ответов по времени
     const chatText = (question.chat || [])
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .slice(-10)
@@ -354,19 +362,6 @@ ${chatText || "Нет сообщений"}
 #USER${userId}
     `;
 
-    // Удаление предыдущей карточки
-    if (question.adminMsgId) {
-      try {
-        await ctx.telegram.deleteMessage(ADMIN_CHAT_ID, question.adminMsgId);
-      } catch (error) {
-        console.error(
-          `Ошибка удаления карточки ${question.adminMsgId}:`,
-          error
-        );
-      }
-    }
-
-    // Создание новой карточки с HTML-разметкой
     const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
       parse_mode: "HTML",
       reply_markup: Markup.inlineKeyboard([
@@ -382,30 +377,15 @@ ${chatText || "Нет сообщений"}
     question.adminMsgId = sent.message_id;
     userProfiles.set(userId, profile);
   } catch (error) {
-    console.error(`Ошибка дублирования карточки для ${userId}:`, error);
+    console.error(`Ошибка создания карточки для ${userId}:`, error);
   }
 }
 
-// Команда /unanswered (только для админ-чата)
-bot.command("unanswered", async (ctx) => {
-  if (ctx.chat.id !== ADMIN_CHAT_ID) {
-    await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
-    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
-    return;
-  }
-  await showUnansweredCount(ctx);
-});
-
-// Команда /sort (только для админ-чата)
-bot.command("sort", async (ctx) => {
-  if (ctx.chat.id !== ADMIN_CHAT_ID) {
-    await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
-    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
-    return;
-  }
-
+// Сортировка и обновление всех карточек
+async function sortAndUpdateCards(ctx) {
   try {
-    // Собираем все вопросы с их userId
+    console.log("Выполняется сортировка и обновление карточек");
+
     const allQuestions = [];
     for (const [userId, profile] of userProfiles.entries()) {
       profile.questions.forEach((question, index) => {
@@ -413,20 +393,25 @@ bot.command("sort", async (ctx) => {
           userId,
           questionIndex: index,
           question,
-          timestamp: question.chat[question.chat.length - 1].timestamp,
+          timestamp: question.chat[question.chat.length - 1]?.timestamp || formatDate(),
         });
       });
     }
 
-    // Сортировка: сначала отвеченные, потом неотвеченные, внутри по свежести (от новых к старым)
+    if (allQuestions.length === 0) {
+      console.log("Нет вопросов для сортировки");
+      return;
+    }
+
+    // Сортировка: отвеченные сверху, неотвеченные снизу
     allQuestions.sort((a, b) => {
       if (a.question.answered !== b.question.answered) {
-        return a.question.answered ? -1 : 1; // Отвеченные выше
+        return a.question.answered ? -1 : 1; // 🟢 сверху, 🔴 снизу
       }
       return new Date(b.timestamp) - new Date(a.timestamp); // Новые выше
     });
 
-    // Удаляем все существующие карточки
+    // Удаление старых карточек
     for (const { userId, questionIndex } of allQuestions) {
       const profile = userProfiles.get(userId);
       const question = profile.questions[questionIndex];
@@ -444,17 +429,73 @@ bot.command("sort", async (ctx) => {
       }
     }
 
-    // Создаем новые карточки в отсортированном порядке
+    // Создание новых карточек в отсортированном порядке
     for (const { userId, questionIndex } of allQuestions) {
-      await duplicateAdminCard(ctx, userId, questionIndex);
+      await createAdminCard(ctx, userId, questionIndex);
     }
 
-    const sentMsg = await ctx.reply("✅ Вопросы отсортированы: отвеченные сверху, неотвеченные снизу по свежести.");
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    console.log("Сортировка и обновление карточек завершены");
   } catch (error) {
-    console.error(`Ошибка при сортировке вопросов:`, error);
-    await ctx.reply("❌ Произошла ошибка при сортировке.");
+    console.error("Ошибка в sortAndUpdateCards:", error);
   }
+}
+
+// Команда /unanswered
+bot.command("unanswered", async (ctx) => {
+  if (ctx.chat.id !== ADMIN_CHAT_ID) {
+    console.log(`Попытка вызова /unanswered вне админ-чата: ${ctx.from.id}`);
+    const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+    return;
+  }
+  await showUnansweredCount(ctx);
+});
+
+// Команда /sort
+bot.command("sort", async (ctx) => {
+  if (ctx.chat.id !== ADMIN_CHAT_ID) {
+    console.log(`Попытка вызова /sort вне админ-чата: ${ctx.from.id}`);
+    const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+    return;
+  }
+
+  try {
+    console.log("Выполняется команда /sort");
+    await sortAndUpdateCards(ctx);
+    const sentMsg = await ctx.reply(
+      "✅ Вопросы отсортированы: отвеченные (🟢) сверху, неотвеченные (🔴) снизу."
+    );
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    console.log("Команда /sort выполнена успешно");
+  } catch (error) {
+    console.error("Ошибка в команде /sort:", error);
+    const sentMsg = await ctx.reply("❌ Ошибка при сортировке вопросов.");
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+  }
+});
+
+// Команда /help
+bot.command("help", async (ctx) => {
+  if (ctx.chat.id !== ADMIN_CHAT_ID) {
+    console.log(`Попытка вызова /help вне админ-чата: ${ctx.from.id}`);
+    const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+    return;
+  }
+
+  const helpMessage = `
+📋 Доступные команды для администраторов:
+• /unanswered — Показать количество неотвеченных вопросов.
+• /sort — Отсортировать вопросы: отвеченные (🟢) сверху, неотвеченные (🔴) снизу.
+• /help — Показать это сообщение.
+  `;
+  const sentMsg = await ctx.reply(helpMessage);
+  await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+  console.log("Команда /help выполнена");
 });
 
 // Запуск бота
