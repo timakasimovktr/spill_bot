@@ -217,8 +217,8 @@ bot.on("text", async (ctx) => {
       await sortAndUpdateCards(ctx);
 
       const sentMsg = await ctx.reply("✅ Ответ отправлен пользователю.");
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
 
       pendingReplies.delete(userId);
       return;
@@ -308,7 +308,7 @@ bot.on("text", async (ctx) => {
           ? "✅ Savol qabul qilindi. Tez orada javob beramiz."
           : "✅ Вопрос принят. Скоро ответим."
       );
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
     } else {
       await ctx.reply(
         lang === "uz"
@@ -373,8 +373,8 @@ bot.on(["photo", "video", "document", "audio", "voice", "sticker", "animation"],
       await sortAndUpdateCards(ctx);
 
       const sentMsg = await ctx.reply("✅ Файл отправлен пользователю.");
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
 
       pendingReplies.delete(userId);
       return;
@@ -432,7 +432,7 @@ bot.on(["photo", "video", "document", "audio", "voice", "sticker", "animation"],
         ? "✅ Fayl qabul qilindi. Tez orada javob beramiz."
         : "✅ Файл принят. Скоро ответим."
     );
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   } catch (error) {
     console.error(`Ошибка при обработке файла от ${ctx.from.id}:`, error);
     await ctx.reply(
@@ -479,7 +479,7 @@ bot.on("callback_query", async (ctx) => {
 
     await ctx.answerCbQuery();
     const sentMsg = await ctx.reply("✍️ Напишите ответ или отправьте файл пользователю:");
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   } catch (error) {
     console.error(`Ошибка в callback_query от ${ctx.from.id}:`, error);
     await ctx.answerCbQuery("❌ Произошла ошибка.");
@@ -492,8 +492,8 @@ bot.command("unanswered", async (ctx) => {
     if (Number(ctx.chat.id) !== ADMIN_CHAT_ID) {
       console.log(`Попытка вызова /unanswered вне админ-чата: ${ctx.from.id}, chatId: ${ctx.chat.id}`);
       const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       return;
     }
 
@@ -508,12 +508,12 @@ bot.command("unanswered", async (ctx) => {
       ? `🔴 Неотвеченных вопросов: ${count}`
       : "✅ Все вопросы отвечены!";
     const sentMsg = await ctx.reply(message);
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
     console.log(`Команда /unanswered выполнена: ${message}`);
   } catch (error) {
     console.error("Ошибка в команде /unanswered:", error);
     const sentMsg = await ctx.reply("❌ Ошибка при подсчете неотвеченных вопросов.");
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   }
 });
 
@@ -523,8 +523,8 @@ bot.command("sort", async (ctx) => {
     if (Number(ctx.chat.id) !== ADMIN_CHAT_ID) {
       console.log(`Попытка вызова /sort вне админ-чата: ${ctx.from.id}, chatId: ${ctx.chat.id}`);
       const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       return;
     }
 
@@ -533,12 +533,12 @@ bot.command("sort", async (ctx) => {
     const sentMsg = await ctx.reply(
       "✅ Вопросы отсортированы: отвеченные (🟢) сверху, неотвеченные (🔴) снизу."
     );
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
     console.log("Команда /sort выполнена успешно");
   } catch (error) {
     console.error("Ошибка в команде /sort:", error);
     const sentMsg = await ctx.reply("❌ Ошибка при сортировке вопросов.");
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   }
 });
 
@@ -548,8 +548,8 @@ bot.command("help", async (ctx) => {
     if (Number(ctx.chat.id) !== ADMIN_CHAT_ID) {
       console.log(`Попытка вызова /help вне админ-чата: ${ctx.from.id}, chatId: ${ctx.chat.id}`);
       const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       return;
     }
 
@@ -560,12 +560,12 @@ bot.command("help", async (ctx) => {
 • /help — Показать это сообщение.
   `;
     const sentMsg = await ctx.reply(helpMessage);
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
     console.log("Команда /help выполнена");
   } catch (error) {
     console.error("Ошибка в команде /help:", error);
     const sentMsg = await ctx.reply("❌ Ошибка при выполнении команды /help.");
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id);
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   }
 });
 
@@ -631,60 +631,32 @@ ${chatText || "Нет сообщений"}
 #USER${userId}
     `;
 
-    // Проверяем, есть ли фотографии в последних 10 сообщениях
-    const recentPhotos = (question.chat || [])
+    // Отправляем текстовую карточку
+    const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
+      parse_mode: "HTML",
+      reply_markup: Markup.inlineKeyboard([
+        Markup.button.callback(
+          profile.lang === "uz"
+            ? `📩 Javob berish ${statusEmoji}`
+            : `📩 Ответить ${statusEmoji}`,
+          `reply_${userId}_${questionIndex}`
+        ),
+      ]).reply_markup,
+    });
+
+    question.adminMsgId = sent.message_id;
+    userProfiles.set(userId, profile);
+
+    // Пересылаем все медиа (фото, видео, документы и т.д.) в хронологическом порядке
+    const recentMedia = (question.chat || [])
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .slice(-10)
-      .filter(item => item.contentType === "photo");
+      .filter(item => item.contentType !== "text" && item.message_id);
 
-    if (recentPhotos.length > 0) {
-      // Отправляем карточку с первой фотографией
-      const latestPhoto = recentPhotos[recentPhotos.length - 1];
-      const sent = await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, latestPhoto.content, {
-        caption: groupMessage,
-        parse_mode: "HTML",
-        reply_markup: Markup.inlineKeyboard([
-          Markup.button.callback(
-            profile.lang === "uz"
-              ? `📩 Javob berish ${statusEmoji}`
-              : `📩 Ответить ${statusEmoji}`,
-            `reply_${userId}_${questionIndex}`
-          ),
-        ]).reply_markup,
+    for (const item of recentMedia) {
+      await ctx.telegram.copyMessage(ADMIN_CHAT_ID, item.type === "question" ? userId : ADMIN_CHAT_ID, item.message_id, {
+        caption: item.caption ? `${item.type === "question" ? "👨‍🦰" : "🤖"} ${item.caption}` : undefined,
       });
-
-      question.adminMsgId = sent.message_id;
-      userProfiles.set(userId, profile);
-
-      // Пересылаем остальные фотографии, если их больше одной
-      for (const item of recentPhotos.slice(0, -1)) {
-        if (item.message_id) {
-          await ctx.telegram.copyMessage(ADMIN_CHAT_ID, userId, item.message_id);
-        }
-      }
-    } else {
-      // Отправляем текстовую карточку, если нет фотографий
-      const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
-        parse_mode: "HTML",
-        reply_markup: Markup.inlineKeyboard([
-          Markup.button.callback(
-            profile.lang === "uz"
-              ? `📩 Javob berish ${statusEmoji}`
-              : `📩 Ответить ${statusEmoji}`,
-            `reply_${userId}_${questionIndex}`
-          ),
-        ]).reply_markup,
-      });
-
-      question.adminMsgId = sent.message_id;
-      userProfiles.set(userId, profile);
-    }
-
-    // Пересылка других типов медиа (видео, документы и т.д.)
-    for (const item of (question.chat || []).slice(-10)) {
-      if (item.contentType !== "text" && item.contentType !== "photo" && item.message_id) {
-        await ctx.telegram.copyMessage(ADMIN_CHAT_ID, userId, item.message_id);
-      }
     }
   } catch (error) {
     console.error(`Ошибка создания карточки для ${userId}:`, error);
