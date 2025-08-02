@@ -209,7 +209,7 @@ bot.on("text", async (ctx) => {
 
       const question = targetProfile.questions[questionIndex];
       question.chat = question.chat || [];
-      question.chat.push({ type: "answer", contentType: "text", content: text, timestamp: formatDate() });
+      question.chat.push({ type: "answer", contentType: "text", content: text, timestamp: formatDate(), message_id: ctx.message.message_id });
       question.answered = !hasUnansweredQuestions(question.chat);
       userProfiles.set(targetUserId, targetProfile);
 
@@ -284,7 +284,7 @@ bot.on("text", async (ctx) => {
     } else if (state.step === "waiting_question" && text) {
       if (!profile.questions.length) {
         profile.questions.push({
-          chat: [{ type: "question", contentType: "text", content: text, timestamp: formatDate() }],
+          chat: [{ type: "question", contentType: "text", content: text, timestamp: formatDate(), message_id: ctx.message.message_id }],
           answered: false,
           adminMsgId: null,
         });
@@ -295,6 +295,7 @@ bot.on("text", async (ctx) => {
           contentType: "text",
           content: text,
           timestamp: formatDate(),
+          message_id: ctx.message.message_id,
         });
         profile.questions[0].answered = false;
       }
@@ -630,27 +631,61 @@ ${chatText || "Нет сообщений"}
 #USER${userId}
     `;
 
-    const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
-      parse_mode: "HTML",
-      reply_markup: Markup.inlineKeyboard([
-        Markup.button.callback(
-          profile.lang === "uz"
-            ? `📩 Javob berish ${statusEmoji}`
-            : `📩 Ответить ${statusEmoji}`,
-          `reply_${userId}_${questionIndex}`
-        ),
-      ]).reply_markup,
-    });
+    // Проверяем, есть ли фотографии в последних 10 сообщениях
+    const recentPhotos = (question.chat || [])
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      .slice(-10)
+      .filter(item => item.contentType === "photo");
 
-    // Пересылка файлов в админ-чат
+    if (recentPhotos.length > 0) {
+      // Отправляем карточку с первой фотографией
+      const latestPhoto = recentPhotos[recentPhotos.length - 1];
+      const sent = await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, latestPhoto.content, {
+        caption: groupMessage,
+        parse_mode: "HTML",
+        reply_markup: Markup.inlineKeyboard([
+          Markup.button.callback(
+            profile.lang === "uz"
+              ? `📩 Javob berish ${statusEmoji}`
+              : `📩 Ответить ${statusEmoji}`,
+            `reply_${userId}_${questionIndex}`
+          ),
+        ]).reply_markup,
+      });
+
+      question.adminMsgId = sent.message_id;
+      userProfiles.set(userId, profile);
+
+      // Пересылаем остальные фотографии, если их больше одной
+      for (const item of recentPhotos.slice(0, -1)) {
+        if (item.message_id) {
+          await ctx.telegram.copyMessage(ADMIN_CHAT_ID, userId, item.message_id);
+        }
+      }
+    } else {
+      // Отправляем текстовую карточку, если нет фотографий
+      const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
+        parse_mode: "HTML",
+        reply_markup: Markup.inlineKeyboard([
+          Markup.button.callback(
+            profile.lang === "uz"
+              ? `📩 Javob berish ${statusEmoji}`
+              : `📩 Ответить ${statusEmoji}`,
+            `reply_${userId}_${questionIndex}`
+          ),
+        ]).reply_markup,
+      });
+
+      question.adminMsgId = sent.message_id;
+      userProfiles.set(userId, profile);
+    }
+
+    // Пересылка других типов медиа (видео, документы и т.д.)
     for (const item of (question.chat || []).slice(-10)) {
-      if (item.contentType !== "text" && item.message_id) {
+      if (item.contentType !== "text" && item.contentType !== "photo" && item.message_id) {
         await ctx.telegram.copyMessage(ADMIN_CHAT_ID, userId, item.message_id);
       }
     }
-
-    question.adminMsgId = sent.message_id;
-    userProfiles.set(userId, profile);
   } catch (error) {
     console.error(`Ошибка создания карточки для ${userId}:`, error);
   }
