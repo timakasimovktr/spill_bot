@@ -92,7 +92,7 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
 🔹 Вақтни тежаш — банкларда навбатда туриш ва автобусда юришсиз
 🔹 24/7 қўллаб-қувватлаш — биз ҳар доим ёнингиздамиз
 
-👉 Xizmatdan foydalanish bo‘yicha to‘liq yo‘riqnomani Telegram-bot orqali olishingiz mumkin: @smartdunyopaybot (https://t.me/smartdunyopaybot)
+👉 Xizmatdan foydalanish bo‘yicha to‘liq yo‘riqnomani Telegram-bot orqali olishingiz mumkin: @smartdunyopaybot[](https://t.me/smartdunyopaybot)
 
 ☎️ Шунингдек, барча саволлар бўйича куну тун ишлайдиган колл-марказимизга мурожаат қилишингиз мумкин: +998 71 200 93 33
 
@@ -116,9 +116,9 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
 🔹 Моментальный перевод средств на расчётный счёт заключённого для покупки товаров первой необходимости
 🔹 Удобство и простота — всё через мобильное приложение Uzum Bank
 🔹 Экономия времени — без очередей в банке и поездок в автобусах
-🔹 Поддержка 24/7 — мы всегда рядом
+🔹 Поддержka 24/7 — мы всегда рядом
 
-👉 Полную инструкцию по использованию сервиса вы можете получить через наш телеграм-бот: @smartdunyopaybot (https://t.me/smartdunyopaybot)
+👉 Полную инструкцию по использованию сервиса вы можете получить через наш телеграм-бот: @smartdunyopaybot[](https://t.me/smartdunyopaybot)
 
 ☎️ А также задать любой вопрос в круглосуточном колл-центре: +998 71 200 93 33
 
@@ -135,16 +135,15 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
     await ctx.reply(
       lang === "uz"
         ? profile.name
-          ? "Telefon raqamingizni yuboring:"
+          ? "Telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
           : "Ismingizni yozing:"
         : profile.name
-        ? "Отправьте номер телефона:"
+        ? "Отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:"
         : "Введите своё имя:",
       profile.name
         ? Markup.inlineKeyboard([
             Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-              true
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
             ),
           ])
         : Markup.removeKeyboard()
@@ -229,10 +228,10 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    // Игнорируем сообщения в админ-чате
+    // Удаление всех сообщений в админ-чате, не связанных с карточками
     if (Number(ctx.chat.id) === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
       if (!text.startsWith("/")) {
-        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
         return;
       }
       return;
@@ -248,39 +247,39 @@ bot.on("text", async (ctx) => {
 
       await ctx.reply(
         lang === "uz"
-          ? "Telefon raqamingizni yuboring:"
-          : "Отправьте номер телефона:",
+          ? "Telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
+          : "Отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:",
         Markup.inlineKeyboard([
           Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-            true
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
           ),
         ])
-      );
-    } else if (state.step === "waiting_phone" && /^\+998\d{9}$/.test(text)) {
-      profile.phone = text;
-      profile.lang = lang;
-      userProfiles.set(userId, profile);
-      userStates.set(userId, { step: "waiting_question" });
-
-      await ctx.reply(
-        lang === "uz"
-          ? "Savolingizni yozing yoki fayl yuboring:"
-          : "Напишите свой вопрос или отправьте файл:",
-        Markup.removeKeyboard()
       );
     } else if (state.step === "waiting_phone") {
-      await ctx.reply(
-        lang === "uz"
-          ? "Iltimos, telefon raqamingizni +998901234567 formatida kiriting:"
-          : "Пожалуйста, введите номер телефона в формате +998901234567:",
-        Markup.inlineKeyboard([
-          Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-            true
-          ),
-        ])
-      );
+      if (/^\+998\d{9}$/.test(text)) {
+        profile.phone = text;
+        profile.lang = lang;
+        userProfiles.set(userId, profile);
+        userStates.set(userId, { step: "waiting_question" });
+
+        await ctx.reply(
+          lang === "uz"
+            ? "Savolingizni yozing yoki fayl yuboring:"
+            : "Напишите свой вопрос или отправьте файл:",
+          Markup.removeKeyboard()
+        );
+      } else {
+        await ctx.reply(
+          lang === "uz"
+            ? "❌ Iltimos, telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
+            : "❌ Пожалуйста, отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:",
+          Markup.inlineKeyboard([
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+            ),
+          ])
+        );
+      }
     } else if (state.step === "waiting_question" && text) {
       if (!profile.questions.length) {
         profile.questions.push({
@@ -344,6 +343,7 @@ bot.on(
       let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
       const lang = profile.lang || "uz";
 
+      // Ответ из группы
       if (pendingReplies.has(userId)) {
         const { targetUserId, questionIndex } = pendingReplies.get(userId);
         const targetProfile = userProfiles.get(targetUserId);
@@ -403,8 +403,9 @@ bot.on(
         return;
       }
 
+      // Удаление всех медиа в админ-чате, не связанных с ответами
       if (Number(ctx.chat.id) === ADMIN_CHAT_ID) {
-        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
         return;
       }
 
