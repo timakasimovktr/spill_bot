@@ -92,7 +92,7 @@ bot.hears(["🇺🇿 O'zbek tili", "🇷🇺 Русский язык"], async (c
 🔹 Вақтни тежаш — банкларда навбатда туриш ва автобусда юришсиз
 🔹 24/7 қўллаб-қувватлаш — биз ҳар доим ёнингиздамиз
 
-👉 Xizmatdan foydalanish bo‘yicha to‘liq yo‘riqnomani Telegram-bot orqali olishingiz mumkin: @smartdunyopaybot[](https://t.me/smartdunyopaybot)
+👉 Xizmatdan foydalanish bo‘yicha to‘liq yo‘riqnomani Telegram-bot orqali olishingiz mumkin: @smartdunyopaybot (https://t.me/smartdunyopaybot)
 
 ☎️ Шунингдек, барча саволлар бўйича куну тун ишлайдиган колл-марказимизга мурожаат қилишингиз мумкин: +998 71 200 93 33
 
@@ -116,9 +116,9 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
 🔹 Моментальный перевод средств на расчётный счёт заключённого для покупки товаров первой необходимости
 🔹 Удобство и простота — всё через мобильное приложение Uzum Bank
 🔹 Экономия времени — без очередей в банке и поездок в автобусах
-🔹 Поддержka 24/7 — мы всегда рядом
+🔹 Поддержка 24/7 — мы всегда рядом
 
-👉 Полную инструкцию по использованию сервиса вы можете получить через наш телеграм-бот: @smartdunyopaybot[](https://t.me/smartdunyopaybot)
+👉 Полную инструкцию по использованию сервиса вы можете получить через наш телеграм-бот: @smartdunyopaybot (https://t.me/smartdunyopaybot)
 
 ☎️ А также задать любой вопрос в круглосуточном колл-центре: +998 71 200 93 33
 
@@ -135,15 +135,16 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
     await ctx.reply(
       lang === "uz"
         ? profile.name
-          ? "Telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
+          ? "Telefon raqamingizni yuboring:"
           : "Ismingizni yozing:"
         : profile.name
-        ? "Отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:"
+        ? "Отправьте номер телефона:"
         : "Введите своё имя:",
       profile.name
         ? Markup.inlineKeyboard([
             Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+              true
             ),
           ])
         : Markup.removeKeyboard()
@@ -161,53 +162,24 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
 // Обработка контакта
 bot.on("contact", async (ctx) => {
   try {
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
-    
-    // Ignore if user is not in the correct state
-    if (!state || state.step !== "waiting_phone") {
-      await ctx.reply(
-        ctx.message.from.language_code === "uz"
-          ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
-          : "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
-      );
-      return;
-    }
+    const state = userStates.get(ctx.from.id);
+    if (!state || state.step !== "waiting_phone") return;
 
-    // Initialize profile if it doesn't exist
-    let profile = userProfiles.get(userId) || { questions: [], lang: ctx.message.from.language_code === "uz" ? "uz" : "ru" };
-
-    const phoneNumber = ctx.message.contact.phone_number;
-    if (!/^\+998\d{9}$/.test(phoneNumber)) {
-      await ctx.reply(
-        profile.lang === "uz"
-          ? "❌ Telefon raqami +998 bilan boshlanishi va 9 ta raqamdan iborat bo‘lishi kerak."
-          : "❌ Номер телефона должен начинаться с +998 и содержать 9 цифр."
-      );
-      return;
-    }
-
-    profile.phone = phoneNumber;
-    userProfiles.set(userId, profile);
-    userStates.set(userId, { step: "waiting_question" });
+    const profile = userProfiles.get(ctx.from.id);
+    profile.phone = ctx.message.contact.phone_number;
+    userProfiles.set(ctx.from.id, profile);
+    userStates.set(ctx.from.id, { step: "waiting_question" });
 
     await ctx.reply(
       profile.lang === "uz"
-        ? "✅ Telefon raqami qabul qilindi. Savolingizni yozing yoki fayl yuboring:"
-        : "✅ Номер телефона принят. Напишите свой вопрос или отправьте файл:",
+        ? "Savolingizni yozing yoki fayl yuboring:"
+        : "Напишите свой вопрос или отправьте файл:",
       Markup.removeKeyboard()
     );
-
-    // Delete the contact message
-    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
   } catch (error) {
-    console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, {
-      error,
-      userId: ctx.from.id,
-      message: ctx.message
-    });
+    console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
     await ctx.reply(
-      ctx.message.from.language_code === "uz"
+      profile.lang === "uz"
         ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
         : "❌ Произошла ошибка. Попробуйте снова."
     );
@@ -223,7 +195,7 @@ bot.on("text", async (ctx) => {
     let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
     const lang = profile.lang || "uz";
 
-    // Handle replies in admin chat
+    // Ответ из группы
     if (pendingReplies.has(userId)) {
       const { targetUserId, questionIndex } = pendingReplies.get(userId);
       const targetProfile = userProfiles.get(targetUserId);
@@ -257,19 +229,16 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    // Delete non-card-related messages in admin chat
+    // Игнорируем сообщения в админ-чате
     if (Number(ctx.chat.id) === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
       if (!text.startsWith("/")) {
-        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
         return;
       }
       return;
     }
 
-    if (!state) {
-      console.log(`Состояние не найдено для ${userId}, игнорируем сообщение`);
-      return;
-    }
+    if (!state) return;
 
     if (state.step === "waiting_name") {
       profile.name = text;
@@ -279,52 +248,39 @@ bot.on("text", async (ctx) => {
 
       await ctx.reply(
         lang === "uz"
-          ? "Telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring. Agar tugma ishlamasa, +998901234567 formatida qo‘lda kiriting:"
-          : "Отправьте номер телефона через кнопку '📱 Отправить номер'. Если кнопка недоступна, введите вручную в формате +998901234567:",
+          ? "Telefon raqamingizni yuboring:"
+          : "Отправьте номер телефона:",
         Markup.inlineKeyboard([
           Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+            true
           ),
         ])
       );
+    } else if (state.step === "waiting_phone" && /^\+998\d{9}$/.test(text)) {
+      profile.phone = text;
+      profile.lang = lang;
+      userProfiles.set(userId, profile);
+      userStates.set(userId, { step: "waiting_question" });
 
-      // Delete the name message
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
+      await ctx.reply(
+        lang === "uz"
+          ? "Savolingizni yozing yoki fayl yuboring:"
+          : "Напишите свой вопрос или отправьте файл:",
+        Markup.removeKeyboard()
+      );
     } else if (state.step === "waiting_phone") {
-      // Check if the message is a phone number
-      if (/^\+998\d{9}$/.test(text)) {
-        // Enforce "share contact" button for clients that support it
-        const isDesktopClient = ctx.message.source === "web" || !ctx.message.via_bot;
-        if (!isDesktopClient) {
-          await ctx.reply(
-            lang === "uz"
-              ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
-              : "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
-          );
-          return;
-        }
-
-        profile.phone = text;
-        profile.dim = lang;
-        userProfiles.set(userId, profile);
-        userStates.set(userId, { step: "waiting_question" });
-
-        await ctx.reply(
-          lang === "uz"
-            ? "✅ Telefon raqami qabul qilindi. Savolingizni yozing yoki fayl yuboring:"
-            : "✅ Номер телефона принят. Напишите свой вопрос или отправьте файл:",
-          Markup.removeKeyboard()
-        );
-
-        // Delete the phone number message
-        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
-      } else {
-        await ctx.reply(
-          lang === "uz"
-            ? "❌ Iltimos, telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
-            : "❌ Пожалуйста, отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:"
-        );
-      }
+      await ctx.reply(
+        lang === "uz"
+          ? "Iltimos, telefon raqamingizni +998901234567 formatida kiriting:"
+          : "Пожалуйста, введите номер телефона в формате +998901234567:",
+        Markup.inlineKeyboard([
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+            true
+          ),
+        ])
+      );
     } else if (state.step === "waiting_question" && text) {
       if (!profile.questions.length) {
         profile.questions.push({
@@ -361,7 +317,6 @@ bot.on("text", async (ctx) => {
           : "✅ Вопрос принят. Скоро ответим."
       );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
     } else {
       await ctx.reply(
         lang === "uz"
@@ -372,7 +327,9 @@ bot.on("text", async (ctx) => {
   } catch (error) {
     console.error(`Ошибка при обработке текста от ${ctx.from.id}:`, error);
     await ctx.reply(
-      "❌ Произошла ошибка. Попробуйте снова."
+      profile.lang === "uz"
+        ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
+        : "❌ Произошла ошибка. Попробуйте снова."
     );
   }
 });
@@ -387,7 +344,6 @@ bot.on(
       let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
       const lang = profile.lang || "uz";
 
-      // Ответ из группы
       if (pendingReplies.has(userId)) {
         const { targetUserId, questionIndex } = pendingReplies.get(userId);
         const targetProfile = userProfiles.get(targetUserId);
@@ -447,9 +403,8 @@ bot.on(
         return;
       }
 
-      // Удаление всех медиа в админ-чате, не связанных с ответами
       if (Number(ctx.chat.id) === ADMIN_CHAT_ID) {
-        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
         return;
       }
 
