@@ -141,12 +141,13 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
         ? "Отправьте номер телефона:"
         : "Введите своё имя:",
       profile.name
-        ? Markup.inlineKeyboard([
+        ? Markup.keyboard([
             Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-              true
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
             ),
           ])
+            .resize()
+            .oneTime()
         : Markup.removeKeyboard()
     );
   } catch (error) {
@@ -186,7 +187,6 @@ bot.on("contact", async (ctx) => {
   }
 });
 
-// Обработка текста
 // Обработка текста
 bot.on("text", async (ctx) => {
   try {
@@ -251,28 +251,26 @@ bot.on("text", async (ctx) => {
         lang === "uz"
           ? "Telefon raqamingizni yuboring:"
           : "Отправьте номер телефона:",
-        {
-          reply_markup: Markup.inlineKeyboard([
-            Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-              true
-            ),
-          ]).reply_markup,
-        }
+        Markup.keyboard([
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+          ),
+        ])
+          .resize()
+          .oneTime()
       );
     } else if (state.step === "waiting_phone") {
       await ctx.reply(
         lang === "uz"
           ? "Iltimos, telefon raqamingizni faqat tugma orqali yuboring:"
           : "Пожалуйста, отправьте номер телефона только через кнопку:",
-        {
-          reply_markup: Markup.inlineKeyboard([
-            Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-              true
-            ),
-          ]).reply_markup,
-        }
+        Markup.keyboard([
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+          ),
+        ])
+          .resize()
+          .oneTime()
       );
       console.log(`Отправлена клавиатура для userId ${userId} с текстом: ${text}`);
     } else if (state.step === "waiting_question" && text) {
@@ -602,7 +600,6 @@ bot.command("help", async (ctx) => {
 });
 
 // Создание одной карточки
-// Создание одной карточки
 async function createAdminCard(ctx, userId, questionIndex) {
   try {
     const profile = userProfiles.get(userId);
@@ -623,231 +620,25 @@ async function createAdminCard(ctx, userId, questionIndex) {
             break;
           case "photo":
             content = `📸 Фото${item.caption ? `: ${item.caption}` : ""}`;
-            mediaMessage = await ctx.telegram.sendPhoto(
-              ADMIN_CHAT_ID,
-              item.content,
-              {
-                caption: `${prefix} ${item.caption || "Фото"} (${
-                  item.timestamp
-                })`,
-              }
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            ); // Удаляем через 60 секунд
+            mediaMessage = await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Фото"} (${item.timestamp})`,
+            });
+            await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "video":
             content = `📹 Видео${item.caption ? `: ${item.caption}` : ""}`;
-            mediaMessage = await ctx.telegram.sendVideo(
-              ADMIN_CHAT_ID,
-              item.content,
-              {
-                caption: `${prefix} ${item.caption || "Видео"} (${
-                  item.timestamp
-                })`,
-              }
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            );
+            mediaMessage = await ctx.telegram.sendVideo(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Видео"} (${item.timestamp})`,
+            });
+            await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "document":
             content = `📄 Документ${item.caption ? `: ${item.caption}` : ""}`;
-            mediaMessage = await ctx.telegram.sendDocument(
-              ADMIN_CHAT_ID,
-              item.content,
-              {
-                caption: `${prefix} ${item.caption || "Документ"} (${
-                  item.timestamp
-                })`,
-              }
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            );
+            mediaMessage = await ctx.telegram.sendDocument(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Документ"} (${item.timestamp})`,
+            });
+            await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "audio":
             content = `🎵 Аудио${item.caption ? `: ${item.caption}` : ""}`;
-            mediaMessage = await ctx.telegram.sendAudio(
-              ADMIN_CHAT_ID,
-              item.content,
-              {
-                caption: `${prefix} ${item.caption || "Аудио"} (${
-                  item.timestamp
-                })`,
-              }
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            );
-            break;
-          case "voice":
-            content = `🎙 Голосовое сообщение${
-              item.caption ? `: ${item.caption}` : ""
-            }`;
-            mediaMessage = await ctx.telegram.sendVoice(
-              ADMIN_CHAT_ID,
-              item.content,
-              {
-                caption: `${prefix} ${item.caption || "Голосовое"} (${
-                  item.timestamp
-                })`,
-              }
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            );
-            break;
-          case "sticker":
-            content = `😀 Стикер`;
-            mediaMessage = await ctx.telegram.sendSticker(
-              ADMIN_CHAT_ID,
-              item.content
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            );
-            break;
-          case "animation":
-            content = `🎞 Анимация${item.caption ? `: ${item.caption}` : ""}`;
-            mediaMessage = await ctx.telegram.sendAnimation(
-              ADMIN_CHAT_ID,
-              item.content,
-              {
-                caption: `${prefix} ${item.caption || "Анимация"} (${
-                  item.timestamp
-                })`,
-              }
-            );
-            await autoDeleteMessage(
-              ctx,
-              ADMIN_CHAT_ID,
-              mediaMessage.message_id,
-              60000
-            );
-            break;
-          default:
-            content = `Неизвестный тип контента`;
-        }
-        return `<i>${item.timestamp}</i>\n${prefix} ${content}\n---`;
-      });
-
-    // Ждем завершения всех отправок медиа
-    const chatTextResolved = (await Promise.all(chatText)).join("\n");
-
-    const status = question.answered ? "🟢 Отвечено" : "🔴 Ожидает ответа";
-    const statusEmoji = question.answered ? "🟢" : "🔴";
-    const lastUpdated = formatDate();
-
-    const groupMessage = `
-<b>📩 Savol / Вопрос #${questionIndex + 1}</b>
-
-<b>🧑 Имя:</b> ${profile.name}
-<b>📞 Телефон:</b> ${profile.phone}
-<b>📅 Последнее обновление:</b> ${lastUpdated}
-<b>📊 Статус:</b> ${status}
-
-<b>💬 Чат:</b>
-${chatTextResolved || "Нет сообщений"}
-
-#USER${userId}
-    `;
-
-    // Отправляем текстовую карточку
-    const sent = await ctx.telegram.sendMessage(ADMIN_CHAT_ID, groupMessage, {
-      parse_mode: "HTML",
-      reply_markup: Markup.inlineKeyboard([
-        Markup.button.callback(
-          profile.lang === "uz"
-            ? `📩 Javob berish ${statusEmoji}`
-            : `📩 Ответить ${statusEmoji}`,
-          `reply_${userId}_${questionIndex}`
-        ),
-      ]).reply_markup,
-    });
-
-    question.adminMsgId = sent.message_id;
-    userProfiles.set(userId, profile);
-  } catch (error) {
-    console.error(`Ошибка создания карточки для ${userId}:`, error);
-  }
-}
-// Сортировка и обновление всех карточек
-async function sortAndUpdateCards(ctx) {
-  try {
-    console.log("Выполняется сортировка и обновление карточек");
-
-    const allQuestions = [];
-    for (const [userId, profile] of userProfiles.entries()) {
-      profile.questions.forEach((question, index) => {
-        allQuestions.push({
-          userId,
-          questionIndex: index,
-          question,
-          timestamp:
-            question.chat[question.chat.length - 1]?.timestamp || formatDate(),
-        });
-      });
-    }
-
-    if (allQuestions.length === 0) {
-      console.log("Нет вопросов для сортировки");
-      return;
-    }
-
-    allQuestions.sort((a, b) => {
-      if (a.question.answered !== b.question.answered) {
-        return a.question.answered ? -1 : 1;
-      }
-      return new Date(b.timestamp) - new Date(a.timestamp);
-    });
-
-    for (const { userId, questionIndex } of allQuestions) {
-      const profile = userProfiles.get(userId);
-      const question = profile.questions[questionIndex];
-      if (question.adminMsgId) {
-        try {
-          await ctx.telegram.deleteMessage(ADMIN_CHAT_ID, question.adminMsgId);
-          question.adminMsgId = null;
-          userProfiles.set(userId, profile);
-        } catch (error) {
-          console.error(
-            `Ошибка удаления карточки ${question.adminMsgId}:`,
-            error
-          );
-        }
-      }
-    }
-
-    for (const { userId, questionIndex } of allQuestions) {
-      await createAdminCard(ctx, userId, questionIndex);
-    }
-
-    console.log("Сортировка и обновление карточек завершены");
-  } catch (error) {
-    console.error("Ошибка в sortAndUpdateCards:", error);
-  }
-}
-
-// Запуск бота
-bot.launch().then(() => console.log("🤖 Бот успешно запущен"));
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+            mediaMessage = await ctx.telegram.sendAudio(ADMIN_CHAT
