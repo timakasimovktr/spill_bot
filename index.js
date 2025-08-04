@@ -187,6 +187,7 @@ bot.on("contact", async (ctx) => {
 });
 
 // Обработка текста
+// Обработка текста
 bot.on("text", async (ctx) => {
   try {
     const userId = ctx.from.id;
@@ -257,23 +258,11 @@ bot.on("text", async (ctx) => {
           ),
         ])
       );
-    } else if (state.step === "waiting_phone" && /^\+998\d{9}$/.test(text)) {
-      profile.phone = text;
-      profile.lang = lang;
-      userProfiles.set(userId, profile);
-      userStates.set(userId, { step: "waiting_question" });
-
-      await ctx.reply(
-        lang === "uz"
-          ? "Savolingizni yozing yoki fayl yuboring:"
-          : "Напишите свой вопрос или отправьте файл:",
-        Markup.removeKeyboard()
-      );
     } else if (state.step === "waiting_phone") {
       await ctx.reply(
         lang === "uz"
-          ? "Iltimos, telefon raqamingizni +998901234567 formatida kiriting:"
-          : "Пожалуйста, введите номер телефона в формате +998901234567:",
+          ? "Iltimos, telefon raqamingizni faqat tugma orqali yuboring:"
+          : "Пожалуйста, отправьте номер телефона только через кнопку:",
         Markup.inlineKeyboard([
           Markup.button.contactRequest(
             lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
@@ -608,6 +597,7 @@ bot.command("help", async (ctx) => {
 });
 
 // Создание одной карточки
+// Создание одной карточки
 async function createAdminCard(ctx, userId, questionIndex) {
   try {
     const profile = userProfiles.get(userId);
@@ -620,6 +610,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
       .map(async (item) => {
         const prefix = item.type === "question" ? "👨‍🦰" : "🤖";
         let content;
+        let mediaMessage;
 
         switch (item.contentType) {
           case "text":
@@ -627,57 +618,126 @@ async function createAdminCard(ctx, userId, questionIndex) {
             break;
           case "photo":
             content = `📸 Фото${item.caption ? `: ${item.caption}` : ""}`;
-            await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, item.content, {
-              caption: `${prefix} ${item.caption || "Фото"} (${
-                item.timestamp
-              })`,
-            });
+            mediaMessage = await ctx.telegram.sendPhoto(
+              ADMIN_CHAT_ID,
+              item.content,
+              {
+                caption: `${prefix} ${item.caption || "Фото"} (${
+                  item.timestamp
+                })`,
+              }
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            ); // Удаляем через 60 секунд
             break;
           case "video":
             content = `📹 Видео${item.caption ? `: ${item.caption}` : ""}`;
-            await ctx.telegram.sendVideo(ADMIN_CHAT_ID, item.content, {
-              caption: `${prefix} ${item.caption || "Видео"} (${
-                item.timestamp
-              })`,
-            });
+            mediaMessage = await ctx.telegram.sendVideo(
+              ADMIN_CHAT_ID,
+              item.content,
+              {
+                caption: `${prefix} ${item.caption || "Видео"} (${
+                  item.timestamp
+                })`,
+              }
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            );
             break;
           case "document":
             content = `📄 Документ${item.caption ? `: ${item.caption}` : ""}`;
-            await ctx.telegram.sendDocument(ADMIN_CHAT_ID, item.content, {
-              caption: `${prefix} ${item.caption || "Документ"} (${
-                item.timestamp
-              })`,
-            });
+            mediaMessage = await ctx.telegram.sendDocument(
+              ADMIN_CHAT_ID,
+              item.content,
+              {
+                caption: `${prefix} ${item.caption || "Документ"} (${
+                  item.timestamp
+                })`,
+              }
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            );
             break;
           case "audio":
             content = `🎵 Аудио${item.caption ? `: ${item.caption}` : ""}`;
-            await ctx.telegram.sendAudio(ADMIN_CHAT_ID, item.content, {
-              caption: `${prefix} ${item.caption || "Аудио"} (${
-                item.timestamp
-              })`,
-            });
+            mediaMessage = await ctx.telegram.sendAudio(
+              ADMIN_CHAT_ID,
+              item.content,
+              {
+                caption: `${prefix} ${item.caption || "Аудио"} (${
+                  item.timestamp
+                })`,
+              }
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            );
             break;
           case "voice":
             content = `🎙 Голосовое сообщение${
               item.caption ? `: ${item.caption}` : ""
             }`;
-            await ctx.telegram.sendVoice(ADMIN_CHAT_ID, item.content, {
-              caption: `${prefix} ${item.caption || "Голосовое"} (${
-                item.timestamp
-              })`,
-            });
+            mediaMessage = await ctx.telegram.sendVoice(
+              ADMIN_CHAT_ID,
+              item.content,
+              {
+                caption: `${prefix} ${item.caption || "Голосовое"} (${
+                  item.timestamp
+                })`,
+              }
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            );
             break;
           case "sticker":
             content = `😀 Стикер`;
-            await ctx.telegram.sendSticker(ADMIN_CHAT_ID, item.content);
+            mediaMessage = await ctx.telegram.sendSticker(
+              ADMIN_CHAT_ID,
+              item.content
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            );
             break;
           case "animation":
             content = `🎞 Анимация${item.caption ? `: ${item.caption}` : ""}`;
-            await ctx.telegram.sendAnimation(ADMIN_CHAT_ID, item.content, {
-              caption: `${prefix} ${item.caption || "Анимация"} (${
-                item.timestamp
-              })`,
-            });
+            mediaMessage = await ctx.telegram.sendAnimation(
+              ADMIN_CHAT_ID,
+              item.content,
+              {
+                caption: `${prefix} ${item.caption || "Анимация"} (${
+                  item.timestamp
+                })`,
+              }
+            );
+            await autoDeleteMessage(
+              ctx,
+              ADMIN_CHAT_ID,
+              mediaMessage.message_id,
+              60000
+            );
             break;
           default:
             content = `Неизвестный тип контента`;
@@ -725,7 +785,6 @@ ${chatTextResolved || "Нет сообщений"}
     console.error(`Ошибка создания карточки для ${userId}:`, error);
   }
 }
-
 // Сортировка и обновление всех карточек
 async function sortAndUpdateCards(ctx) {
   try {
