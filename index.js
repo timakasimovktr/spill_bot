@@ -194,12 +194,15 @@ bot.on("text", async (ctx) => {
     let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
     const lang = profile.lang || "uz";
 
+    console.log(`Обработка текста от ${userId}: text="${text}", state=${JSON.stringify(state)}`);
+
     // Ответ из группы
     if (pendingReplies.has(userId)) {
       const { targetUserId, questionIndex } = pendingReplies.get(userId);
       const targetProfile = userProfiles.get(targetUserId);
 
       if (!targetProfile || !targetProfile.questions[questionIndex]) {
+        console.log(`Вопрос или пользователь не найден: targetUserId=${targetUserId}, questionIndex=${questionIndex}`);
         await ctx.reply("❗ Вопрос или пользователь не найден.");
         pendingReplies.delete(userId);
         return;
@@ -231,15 +234,25 @@ bot.on("text", async (ctx) => {
     // Удаление всех сообщений в админ-чате, не связанных с карточками
     if (Number(ctx.chat.id) === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
       if (!text.startsWith("/")) {
+        console.log(`Удаление сообщения в админ-чате: message_id=${ctx.message.message_id}`);
         await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
         return;
       }
       return;
     }
 
-    if (!state) return;
+    if (!state) {
+      console.log(`Состояние не найдено для ${userId}, игнорируем сообщение`);
+      await ctx.reply(
+        lang === "uz"
+          ? "Iltimos, /start buyrug‘ini ishlatib boshlang."
+          : "Пожалуйста, начните с команды /start."
+      );
+      return;
+    }
 
     if (state.step === "waiting_name") {
+      console.log(`Сохранение имени для ${userId}: name=${text}`);
       profile.name = text;
       profile.lang = lang;
       userProfiles.set(userId, profile);
@@ -257,6 +270,7 @@ bot.on("text", async (ctx) => {
       );
     } else if (state.step === "waiting_phone") {
       if (/^\+998\d{9}$/.test(text)) {
+        console.log(`Сохранение номера телефона для ${userId}: phone=${text}`);
         profile.phone = text;
         profile.lang = lang;
         userProfiles.set(userId, profile);
@@ -269,6 +283,7 @@ bot.on("text", async (ctx) => {
           Markup.removeKeyboard()
         );
       } else {
+        console.log(`Неверный формат номера для ${userId}: text=${text}`);
         await ctx.reply(
           lang === "uz"
             ? "❌ Iltimos, telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
@@ -281,6 +296,7 @@ bot.on("text", async (ctx) => {
         );
       }
     } else if (state.step === "waiting_question" && text) {
+      console.log(`Сохранение вопроса от ${userId}: question=${text}`);
       if (!profile.questions.length) {
         profile.questions.push({
           chat: [
@@ -317,6 +333,7 @@ bot.on("text", async (ctx) => {
       );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
     } else {
+      console.log(`Некорректные данные от ${userId}: state=${state.step}, text=${text}`);
       await ctx.reply(
         lang === "uz"
           ? "Iltimos, to‘g‘ri ma'lumot kiriting."
@@ -326,7 +343,7 @@ bot.on("text", async (ctx) => {
   } catch (error) {
     console.error(`Ошибка при обработке текста от ${ctx.from.id}:`, error);
     await ctx.reply(
-      profile.lang === "uz"
+      profile?.lang === "uz"
         ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
         : "❌ Произошла ошибка. Попробуйте снова."
     );
@@ -783,6 +800,12 @@ async function sortAndUpdateCards(ctx) {
     console.error("Ошибка в sortAndUpdateCards:", error);
   }
 }
+
+bot.command("reset", async (ctx) => {
+  userStates.delete(ctx.from.id);
+  userProfiles.delete(ctx.from.id);
+  await ctx.reply("Состояние сброшено. Используйте /start для начала.");
+});
 
 // Запуск бота
 bot.launch().then(() => console.log("🤖 Бот успешно запущен"));
