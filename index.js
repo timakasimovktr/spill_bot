@@ -343,7 +343,7 @@ bot.on("text", async (ctx) => {
   } catch (error) {
     console.error(`Ошибка при обработке текста от ${ctx.from.id}:`, error);
     await ctx.reply(
-      profile?.lang === "uz"
+      "uz" === "uz" // Используем язык по умолчанию
         ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
         : "❌ Произошла ошибка. Попробуйте снова."
     );
