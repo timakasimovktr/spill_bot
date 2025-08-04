@@ -163,17 +163,19 @@ bot.on("contact", async (ctx) => {
   try {
     const userId = ctx.from.id;
     const state = userStates.get(userId);
-
+    
     // Ignore if user is not in the correct state
     if (!state || state.step !== "waiting_phone") {
       await ctx.reply(
-        "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
+        ctx.message.from.language_code === "uz"
+          ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
+          : "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
       );
       return;
     }
 
     // Initialize profile if it doesn't exist
-    let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
+    let profile = userProfiles.get(userId) || { questions: [], lang: ctx.message.from.language_code === "uz" ? "uz" : "ru" };
 
     const phoneNumber = ctx.message.contact.phone_number;
     if (!/^\+998\d{9}$/.test(phoneNumber)) {
@@ -199,8 +201,16 @@ bot.on("contact", async (ctx) => {
     // Delete the contact message
     await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
   } catch (error) {
-    console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
-    await ctx.reply("❌ Произошла ошибка. Попробуйте снова.");
+    console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, {
+      error,
+      userId: ctx.from.id,
+      message: ctx.message
+    });
+    await ctx.reply(
+      ctx.message.from.language_code === "uz"
+        ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
+        : "❌ Произошла ошибка. Попробуйте снова."
+    );
   }
 });
 
