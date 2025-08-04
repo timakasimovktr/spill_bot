@@ -287,6 +287,7 @@ bot.on("text", async (ctx) => {
           ],
           answered: false,
           adminMsgId: null,
+          mediaMsgIds: [], // Храним ID медиа-сообщений
         });
       } else {
         profile.questions[0].chat = profile.questions[0].chat || [];
@@ -436,6 +437,7 @@ bot.on(
           ],
           answered: false,
           adminMsgId: null,
+          mediaMsgIds: [], // Храним ID медиа-сообщений
         });
       } else {
         profile.questions[0].chat = profile.questions[0].chat || [];
@@ -455,7 +457,7 @@ bot.on(
 
       const sentMsg = await ctx.reply(
         lang === "uz"
-          ? "✅ Fayl qabul qilindi. Tez orada javob beramiz."
+          ? "✅ Fayl qabul qilindi. Tez orada javob berамiz."
           : "✅ Файл принят. Скоро ответим."
       );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
@@ -605,6 +607,9 @@ async function createAdminCard(ctx, userId, questionIndex) {
     const profile = userProfiles.get(userId);
     const question = profile.questions[questionIndex];
 
+    // Инициализируем массив для хранения ID медиа-сообщений, если его нет
+    question.mediaMsgIds = question.mediaMsgIds || [];
+
     // Формируем текст чата с медиа
     const chatText = (question.chat || [])
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
@@ -623,6 +628,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
             mediaMessage = await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Фото"} (${item.timestamp})`,
             });
+            question.mediaMsgIds.push(mediaMessage.message_id); // Сохраняем ID медиа
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "video":
@@ -630,6 +636,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
             mediaMessage = await ctx.telegram.sendVideo(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Видео"} (${item.timestamp})`,
             });
+            question.mediaMsgIds.push(mediaMessage.message_id);
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "document":
@@ -637,6 +644,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
             mediaMessage = await ctx.telegram.sendDocument(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Документ"} (${item.timestamp})`,
             });
+            question.mediaMsgIds.push(mediaMessage.message_id);
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "audio":
@@ -644,6 +652,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
             mediaMessage = await ctx.telegram.sendAudio(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Аудио"} (${item.timestamp})`,
             });
+            question.mediaMsgIds.push(mediaMessage.message_id);
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "voice":
@@ -651,11 +660,13 @@ async function createAdminCard(ctx, userId, questionIndex) {
             mediaMessage = await ctx.telegram.sendVoice(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Голосовое"} (${item.timestamp})`,
             });
+            question.mediaMsgIds.push(mediaMessage.message_id);
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "sticker":
             content = `😀 Стикер`;
             mediaMessage = await ctx.telegram.sendSticker(ADMIN_CHAT_ID, item.content);
+            question.mediaMsgIds.push(mediaMessage.message_id);
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           case "animation":
@@ -663,6 +674,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
             mediaMessage = await ctx.telegram.sendAnimation(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Анимация"} (${item.timestamp})`,
             });
+            question.mediaMsgIds.push(mediaMessage.message_id);
             await autoDeleteMessage(ctx, ADMIN_CHAT_ID, mediaMessage.message_id, 60000);
             break;
           default:
@@ -742,14 +754,28 @@ async function sortAndUpdateCards(ctx) {
       return new Date(b.timestamp) - new Date(a.timestamp);
     });
 
+    // Удаляем старые карточки и связанные медиафайлы
     for (const { userId, questionIndex } of allQuestions) {
       const profile = userProfiles.get(userId);
       const question = profile.questions[questionIndex];
+
+      // Удаляем медиафайлы
+      if (question.mediaMsgIds && question.mediaMsgIds.length > 0) {
+        for (const mediaMsgId of question.mediaMsgIds) {
+          try {
+            await ctx.telegram.deleteMessage(ADMIN_CHAT_ID, mediaMsgId);
+          } catch (error) {
+            console.error(`Ошибка удаления медиа ${mediaMsgId}:`, error);
+          }
+        }
+        question.mediaMsgIds = []; // Очищаем массив после удаления
+      }
+
+      // Удаляем карточку
       if (question.adminMsgId) {
         try {
           await ctx.telegram.deleteMessage(ADMIN_CHAT_ID, question.adminMsgId);
           question.adminMsgId = null;
-          userProfiles.set(userId, profile);
         } catch (error) {
           console.error(
             `Ошибка удаления карточки ${question.adminMsgId}:`,
@@ -757,8 +783,10 @@ async function sortAndUpdateCards(ctx) {
           );
         }
       }
+      userProfiles.set(userId, profile);
     }
 
+    // Создаем новые карточки
     for (const { userId, questionIndex } of allQuestions) {
       await createAdminCard(ctx, userId, questionIndex);
     }
