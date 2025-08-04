@@ -251,25 +251,30 @@ bot.on("text", async (ctx) => {
         lang === "uz"
           ? "Telefon raqamingizni yuboring:"
           : "Отправьте номер телефона:",
-        Markup.inlineKeyboard([
-          Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-            true
-          ),
-        ])
+        {
+          reply_markup: Markup.inlineKeyboard([
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+              true
+            ),
+          ]).reply_markup,
+        }
       );
     } else if (state.step === "waiting_phone") {
       await ctx.reply(
         lang === "uz"
           ? "Iltimos, telefon raqamingizni faqat tugma orqali yuboring:"
           : "Пожалуйста, отправьте номер телефона только через кнопку:",
-        Markup.inlineKeyboard([
-          Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
-            true
-          ),
-        ])
+        {
+          reply_markup: Markup.inlineKeyboard([
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+              true
+            ),
+          ]).reply_markup,
+        }
       );
+      console.log(`Отправлена клавиатура для userId ${userId} с текстом: ${text}`);
     } else if (state.step === "waiting_question" && text) {
       if (!profile.questions.length) {
         profile.questions.push({
