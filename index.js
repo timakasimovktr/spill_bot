@@ -163,16 +163,17 @@ bot.on("contact", async (ctx) => {
   try {
     const userId = ctx.from.id;
     const state = userStates.get(userId);
-    const profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
 
+    // Ignore if user is not in the correct state
     if (!state || state.step !== "waiting_phone") {
       await ctx.reply(
-        profile.lang === "uz"
-          ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
-          : "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
+        "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
       );
       return;
     }
+
+    // Initialize profile if it doesn't exist
+    let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
 
     const phoneNumber = ctx.message.contact.phone_number;
     if (!/^\+998\d{9}$/.test(phoneNumber)) {
@@ -195,15 +196,11 @@ bot.on("contact", async (ctx) => {
       Markup.removeKeyboard()
     );
 
-    // Удаляем сообщение с контактом
+    // Delete the contact message
     await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
   } catch (error) {
     console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
-    await ctx.reply(
-      profile.lang === "uz"
-        ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
-        : "❌ Произошла ошибка. Попробуйте снова."
-    );
+    await ctx.reply("❌ Произошла ошибка. Попробуйте снова.");
   }
 });
 
@@ -216,7 +213,7 @@ bot.on("text", async (ctx) => {
     let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
     const lang = profile.lang || "uz";
 
-    // Ответ из группы
+    // Handle replies in admin chat
     if (pendingReplies.has(userId)) {
       const { targetUserId, questionIndex } = pendingReplies.get(userId);
       const targetProfile = userProfiles.get(targetUserId);
@@ -250,7 +247,7 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    // Удаление всех сообщений в админ-чате, не связанных с карточками
+    // Delete non-card-related messages in admin chat
     if (Number(ctx.chat.id) === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
       if (!text.startsWith("/")) {
         await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
@@ -259,7 +256,10 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    if (!state) return;
+    if (!state) {
+      console.log(`Состояние не найдено для ${userId}, игнорируем сообщение`);
+      return;
+    }
 
     if (state.step === "waiting_name") {
       profile.name = text;
@@ -277,11 +277,15 @@ bot.on("text", async (ctx) => {
           ),
         ])
       );
+
+      // Delete the name message
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
     } else if (state.step === "waiting_phone") {
-      // Проверяем, является ли сообщение попыткой ввода номера телефона
+      // Check if the message is a phone number
       if (/^\+998\d{9}$/.test(text)) {
-        // Разрешаем ручной ввод только если Telegram-клиент не поддерживает кнопку
-        if (ctx.message.via_bot || ctx.message.source === "web") {
+        // Enforce "share contact" button for clients that support it
+        const isDesktopClient = ctx.message.source === "web" || !ctx.message.via_bot;
+        if (!isDesktopClient) {
           await ctx.reply(
             lang === "uz"
               ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
@@ -291,7 +295,7 @@ bot.on("text", async (ctx) => {
         }
 
         profile.phone = text;
-        profile.lang = lang;
+        profile.dim = lang;
         userProfiles.set(userId, profile);
         userStates.set(userId, { step: "waiting_question" });
 
@@ -302,7 +306,7 @@ bot.on("text", async (ctx) => {
           Markup.removeKeyboard()
         );
 
-        // Удаляем сообщение с номером
+        // Delete the phone number message
         await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       } else {
         await ctx.reply(
@@ -358,9 +362,7 @@ bot.on("text", async (ctx) => {
   } catch (error) {
     console.error(`Ошибка при обработке текста от ${ctx.from.id}:`, error);
     await ctx.reply(
-      profile.lang === "uz"
-        ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
-        : "❌ Произошла ошибка. Попробуйте снова."
+      "❌ Произошла ошибка. Попробуйте снова."
     );
   }
 });
