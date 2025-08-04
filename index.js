@@ -147,6 +147,14 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
                 lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
               ),
             ],
+            [
+              Markup.button.callback(
+                lang === "uz"
+                  ? "📞 Raqamni yuborish (knopka)"
+                  : "📞 Отправить номер (кнопка)",
+                "send_phone"
+              ),
+            ],
           ])
             .resize()
             .oneTime()
@@ -162,6 +170,34 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
   }
 });
 
+// Обработка callback для кнопки отправки номера
+bot.action("send_phone", async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const profile = userProfiles.get(userId);
+    const lang = profile?.lang || "uz";
+
+    await ctx.reply(
+      lang === "uz"
+        ? "Telefon raqamingizni yuboring:"
+        : "Отправьте номер телефона:",
+      Markup.keyboard([
+        [
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+          ),
+        ],
+      ])
+        .resize()
+        .oneTime()
+    );
+    await ctx.answerCbQuery();
+  } catch (error) {
+    console.error(`Ошибка в action send_phone для ${ctx.from.id}:`, error);
+    await ctx.answerCbQuery("❌ Произошла ошибка.");
+  }
+});
+
 // Обработка контакта
 bot.on("contact", async (ctx) => {
   try {
@@ -174,8 +210,21 @@ bot.on("contact", async (ctx) => {
     userStates.set(ctx.from.id, { step: "waiting_question" });
 
     await ctx.reply(
-      profile.lang === "uz" ? "Savolingizni yozing yoki fayl yuboring:" : "Напишите свой вопрос или отправьте файл:",
-      Markup.removeKeyboard()
+      profile.lang === "uz"
+        ? "Savolingizni yozing yoki fayl yuboring:"
+        : "Напишите свой вопрос или отправьте файл:",
+      Markup.keyboard([
+        [
+          Markup.button.callback(
+            profile.lang === "uz"
+              ? "📞 Raqamni qayta yuborish"
+              : "📞 Отправить номер снова",
+            "send_phone_again"
+          ),
+        ],
+      ])
+        .resize()
+        .oneTime()
     );
   } catch (error) {
     console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
@@ -184,6 +233,39 @@ bot.on("contact", async (ctx) => {
         ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
         : "❌ Произошла ошибка. Попробуйте снова."
     );
+  }
+});
+
+// Обработка callback для повторной отправки номера
+bot.action("send_phone_again", async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const profile = userProfiles.get(userId);
+    const lang = profile?.lang || "uz";
+
+    userStates.set(userId, { step: "waiting_phone" });
+
+    await ctx.reply(
+      lang === "uz"
+        ? "Telefon raqamingizni yuboring:"
+        : "Отправьте номер телефона:",
+      Markup.keyboard([
+        [
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
+          ),
+        ],
+      ])
+        .resize()
+        .oneTime()
+    );
+    await ctx.answerCbQuery();
+  } catch (error) {
+    console.error(
+      `Ошибка в action send_phone_again для ${ctx.from.id}:`,
+      error
+    );
+    await ctx.answerCbQuery("❌ Произошла ошибка.");
   }
 });
 
@@ -209,7 +291,13 @@ bot.on("text", async (ctx) => {
 
       const question = targetProfile.questions[questionIndex];
       question.chat = question.chat || [];
-      question.chat.push({ type: "answer", contentType: "text", content: text, timestamp: formatDate(), message_id: ctx.message.message_id });
+      question.chat.push({
+        type: "answer",
+        contentType: "text",
+        content: text,
+        timestamp: formatDate(),
+        message_id: ctx.message.message_id,
+      });
       question.answered = !hasUnansweredQuestions(question.chat);
       userProfiles.set(targetUserId, targetProfile);
 
@@ -224,13 +312,12 @@ bot.on("text", async (ctx) => {
       return;
     }
 
-    // Игнорируем сообщения в админ-чате, если пользователь не в режиме ответа
+    // Игнорируем сообщения в админ-чате
     if (Number(ctx.chat.id) === ADMIN_CHAT_ID && !pendingReplies.has(userId)) {
       if (!text.startsWith("/")) {
         await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
         return;
       }
-      // Неизвестные команды обрабатываются в bot.command()
       return;
     }
 
@@ -252,6 +339,14 @@ bot.on("text", async (ctx) => {
               lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
             ),
           ],
+          [
+            Markup.button.callback(
+              lang === "uz"
+                ? "📞 Raqamni yuborish (knopka)"
+                : "📞 Отправить номер (кнопка)",
+              "send_phone"
+            ),
+          ],
         ])
           .resize()
           .oneTime()
@@ -263,8 +358,21 @@ bot.on("text", async (ctx) => {
       userStates.set(userId, { step: "waiting_question" });
 
       await ctx.reply(
-        lang === "uz" ? "Savolingizni yozing yoki fayl yuboring:" : "Напишите свой вопрос или отправьте файл:",
-        Markup.removeKeyboard()
+        lang === "uz"
+          ? "Savolingizni yozing yoki fayl yuboring:"
+          : "Напишите свой вопрос или отправьте файл:",
+        Markup.keyboard([
+          [
+            Markup.button.callback(
+              lang === "uz"
+                ? "📞 Raqamni qayta yuborish"
+                : "📞 Отправить номер снова",
+              "send_phone_again"
+            ),
+          ],
+        ])
+          .resize()
+          .oneTime()
       );
     } else if (state.step === "waiting_phone") {
       await ctx.reply(
@@ -277,6 +385,14 @@ bot.on("text", async (ctx) => {
               lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
             ),
           ],
+          [
+            Markup.button.callback(
+              lang === "uz"
+                ? "📞 Raqamni yuborish (knopka)"
+                : "📞 Отправить номер (кнопка)",
+              "send_phone"
+            ),
+          ],
         ])
           .resize()
           .oneTime()
@@ -284,7 +400,15 @@ bot.on("text", async (ctx) => {
     } else if (state.step === "waiting_question" && text) {
       if (!profile.questions.length) {
         profile.questions.push({
-          chat: [{ type: "question", contentType: "text", content: text, timestamp: formatDate(), message_id: ctx.message.message_id }],
+          chat: [
+            {
+              type: "question",
+              contentType: "text",
+              content: text,
+              timestamp: formatDate(),
+              message_id: ctx.message.message_id,
+            },
+          ],
           answered: false,
           adminMsgId: null,
         });
@@ -326,124 +450,151 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// Обработка медиа (фото, видео, документы и т.д.)
-bot.on(["photo", "video", "document", "audio", "voice", "sticker", "animation"], async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
-    let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
-    const lang = profile.lang || "uz";
+// Обработка медиа
+bot.on(
+  ["photo", "video", "document", "audio", "voice", "sticker", "animation"],
+  async (ctx) => {
+    try {
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+      let profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
+      const lang = profile.lang || "uz";
 
-    // Ответ с файлом от администратора
-    if (pendingReplies.has(userId)) {
-      const { targetUserId, questionIndex } = pendingReplies.get(userId);
-      const targetProfile = userProfiles.get(targetUserId);
+      if (pendingReplies.has(userId)) {
+        const { targetUserId, questionIndex } = pendingReplies.get(userId);
+        const targetProfile = userProfiles.get(targetUserId);
 
-      if (!targetProfile || !targetProfile.questions[questionIndex]) {
-        await ctx.reply("❗ Вопрос или пользователь не найден.");
+        if (!targetProfile || !targetProfile.questions[questionIndex]) {
+          await ctx.reply("❗ Вопрос или пользователь не найден.");
+          pendingReplies.delete(userId);
+          return;
+        }
+
+        const question = targetProfile.questions[questionIndex];
+        question.chat = question.chat || [];
+
+        let contentType = ctx.message.photo
+          ? "photo"
+          : ctx.message.video
+          ? "video"
+          : ctx.message.document
+          ? "document"
+          : ctx.message.audio
+          ? "audio"
+          : ctx.message.voice
+          ? "voice"
+          : ctx.message.sticker
+          ? "sticker"
+          : ctx.message.animation
+          ? "animation"
+          : "unknown";
+        let content =
+          ctx.message[contentType]?.file_id ||
+          ctx.message[contentType]?.[ctx.message[contentType].length - 1]
+            ?.file_id;
+
+        question.chat.push({
+          type: "answer",
+          contentType,
+          content,
+          timestamp: formatDate(),
+          caption: ctx.message.caption || "",
+          message_id: ctx.message.message_id,
+        });
+        question.answered = !hasUnansweredQuestions(question.chat);
+        userProfiles.set(targetUserId, targetProfile);
+
+        await ctx.telegram.copyMessage(
+          targetUserId,
+          ctx.chat.id,
+          ctx.message.message_id
+        );
+        await sortAndUpdateCards(ctx);
+
+        const sentMsg = await ctx.reply("✅ Файл отправлен пользователю.");
+        await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
+
         pendingReplies.delete(userId);
         return;
       }
 
-      const question = targetProfile.questions[questionIndex];
-      question.chat = question.chat || [];
+      if (Number(ctx.chat.id) === ADMIN_CHAT_ID) {
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
+        return;
+      }
 
-      let contentType = ctx.message.photo ? "photo" :
-                       ctx.message.video ? "video" :
-                       ctx.message.document ? "document" :
-                       ctx.message.audio ? "audio" :
-                       ctx.message.voice ? "voice" :
-                       ctx.message.sticker ? "sticker" :
-                       ctx.message.animation ? "animation" : "unknown";
-      let content = ctx.message[contentType]?.file_id || ctx.message[contentType]?.[ctx.message[contentType].length - 1]?.file_id;
+      if (!state || state.step !== "waiting_question") return;
 
-      question.chat.push({
-        type: "answer",
-        contentType,
-        content,
-        timestamp: formatDate(),
-        caption: ctx.message.caption || "",
-        message_id: ctx.message.message_id,
-      });
-      question.answered = !hasUnansweredQuestions(question.chat);
-      userProfiles.set(targetUserId, targetProfile);
+      let contentType = ctx.message.photo
+        ? "photo"
+        : ctx.message.video
+        ? "video"
+        : ctx.message.document
+        ? "document"
+        : ctx.message.audio
+        ? "audio"
+        : ctx.message.voice
+        ? "voice"
+        : ctx.message.sticker
+        ? "sticker"
+        : ctx.message.animation
+        ? "animation"
+        : "unknown";
+      let content =
+        ctx.message[contentType]?.file_id ||
+        ctx.message[contentType]?.[ctx.message[contentType].length - 1]
+          ?.file_id;
 
-      // Пересылка файла пользователю
-      await ctx.telegram.copyMessage(targetUserId, ctx.chat.id, ctx.message.message_id);
-      await sortAndUpdateCards(ctx);
-
-      const sentMsg = await ctx.reply("✅ Файл отправлен пользователю.");
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
-
-      pendingReplies.delete(userId);
-      return;
-    }
-
-    // Игнорируем файлы в админ-чате, если пользователь не в режиме ответа
-    if (Number(ctx.chat.id) === ADMIN_CHAT_ID) {
-      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id);
-      return;
-    }
-
-    if (!state || state.step !== "waiting_question") return;
-
-    // Обработка файла от пользователя
-    let contentType = ctx.message.photo ? "photo" :
-                     ctx.message.video ? "video" :
-                     ctx.message.document ? "document" :
-                     ctx.message.audio ? "audio" :
-                     ctx.message.voice ? "voice" :
-                     ctx.message.sticker ? "sticker" :
-                     ctx.message.animation ? "animation" : "unknown";
-    let content = ctx.message[contentType]?.file_id || ctx.message[contentType]?.[ctx.message[contentType].length - 1]?.file_id;
-
-    if (!profile.questions.length) {
-      profile.questions.push({
-        chat: [{
+      if (!profile.questions.length) {
+        profile.questions.push({
+          chat: [
+            {
+              type: "question",
+              contentType,
+              content,
+              timestamp: formatDate(),
+              caption: ctx.message.caption || "",
+              message_id: ctx.message.message_id,
+            },
+          ],
+          answered: false,
+          adminMsgId: null,
+        });
+      } else {
+        profile.questions[0].chat = profile.questions[0].chat || [];
+        profile.questions[0].chat.push({
           type: "question",
           contentType,
           content,
           timestamp: formatDate(),
           caption: ctx.message.caption || "",
           message_id: ctx.message.message_id,
-        }],
-        answered: false,
-        adminMsgId: null,
-      });
-    } else {
-      profile.questions[0].chat = profile.questions[0].chat || [];
-      profile.questions[0].chat.push({
-        type: "question",
-        contentType,
-        content,
-        timestamp: formatDate(),
-        caption: ctx.message.caption || "",
-        message_id: ctx.message.message_id,
-      });
-      profile.questions[0].answered = false;
+        });
+        profile.questions[0].answered = false;
+      }
+      userProfiles.set(userId, profile);
+
+      await sortAndUpdateCards(ctx);
+
+      const sentMsg = await ctx.reply(
+        lang === "uz"
+          ? "✅ Fayl qabul qilindi. Tez orada javob beramiz."
+          : "✅ Файл принят. Скоро ответим."
+      );
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+    } catch (error) {
+      console.error(`Ошибка при обработке файла от ${ctx.from.id}:`, error);
+      await ctx.reply(
+        profile?.lang === "uz"
+          ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
+          : "❌ Произошла ошибка. Попробуйте снова."
+      );
     }
-    userProfiles.set(userId, profile);
-
-    await sortAndUpdateCards(ctx);
-
-    const sentMsg = await ctx.reply(
-      lang === "uz"
-        ? "✅ Fayl qabul qilindi. Tez orada javob beramiz."
-        : "✅ Файл принят. Скоро ответим."
-    );
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
-  } catch (error) {
-    console.error(`Ошибка при обработке файла от ${ctx.from.id}:`, error);
-    await ctx.reply(
-      profile?.lang === "uz"
-        ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
-        : "❌ Произошла ошибка. Попробуйте снова."
-    );
   }
-});
+);
 
-// Проверка, есть ли неотвеченные вопросы
+// Проверка неотвеченных вопросов
 function hasUnansweredQuestions(chat) {
   if (!chat || chat.length === 0) return false;
   for (let i = chat.length - 1; i >= 0; i--) {
@@ -457,29 +608,37 @@ function hasUnansweredQuestions(chat) {
 bot.on("callback_query", async (ctx) => {
   try {
     const data = ctx.callbackQuery.data;
-    if (!data.startsWith("reply_")) {
+    if (
+      !data.startsWith("reply_") &&
+      data !== "send_phone" &&
+      data !== "send_phone_again"
+    ) {
       await ctx.answerCbQuery("❌ Неверное действие.");
       return;
     }
 
-    const [_, userId, questionIndex] = data.split("_");
-    const targetUserId = Number(userId);
-    const questionIndexNum = Number(questionIndex);
-    const profile = userProfiles.get(targetUserId);
+    if (data.startsWith("reply_")) {
+      const [_, userId, questionIndex] = data.split("_");
+      const targetUserId = Number(userId);
+      const questionIndexNum = Number(questionIndex);
+      const profile = userProfiles.get(targetUserId);
 
-    if (!profile || !profile.questions[questionIndexNum]) {
-      await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
-      return;
+      if (!profile || !profile.questions[questionIndexNum]) {
+        await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
+        return;
+      }
+
+      pendingReplies.set(ctx.from.id, {
+        targetUserId,
+        questionIndex: questionIndexNum,
+      });
+
+      await ctx.answerCbQuery();
+      const sentMsg = await ctx.reply(
+        "✍️ Напишите ответ или отправьте файл пользователю:"
+      );
+      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
     }
-
-    pendingReplies.set(ctx.from.id, {
-      targetUserId,
-      questionIndex: questionIndexNum,
-    });
-
-    await ctx.answerCbQuery();
-    const sentMsg = await ctx.reply("✍️ Напишите ответ или отправьте файл пользователю:");
-    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   } catch (error) {
     console.error(`Ошибка в callback_query от ${ctx.from.id}:`, error);
     await ctx.answerCbQuery("❌ Произошла ошибка.");
@@ -490,29 +649,31 @@ bot.on("callback_query", async (ctx) => {
 bot.command("unanswered", async (ctx) => {
   try {
     if (Number(ctx.chat.id) !== ADMIN_CHAT_ID) {
-      console.log(`Попытка вызова /unanswered вне админ-чата: ${ctx.from.id}, chatId: ${ctx.chat.id}`);
-      const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+      const sentMsg = await ctx.reply(
+        "❌ Эта команда доступна только в чате администраторов."
+      );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
       await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       return;
     }
 
-    console.log("Выполняется команда /unanswered");
     let count = 0;
     for (const profile of userProfiles.values()) {
       for (const question of profile.questions) {
         if (!question.answered) count++;
       }
     }
-    const message = count > 0
-      ? `🔴 Неотвеченных вопросов: ${count}`
-      : "✅ Все вопросы отвечены!";
+    const message =
+      count > 0
+        ? `🔴 Неотвеченных вопросов: ${count}`
+        : "✅ Все вопросы отвечены!";
     const sentMsg = await ctx.reply(message);
     await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
-    console.log(`Команда /unanswered выполнена: ${message}`);
   } catch (error) {
     console.error("Ошибка в команде /unanswered:", error);
-    const sentMsg = await ctx.reply("❌ Ошибка при подсчете неотвеченных вопросов.");
+    const sentMsg = await ctx.reply(
+      "❌ Ошибка при подсчете неотвеченных вопросов."
+    );
     await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   }
 });
@@ -521,20 +682,19 @@ bot.command("unanswered", async (ctx) => {
 bot.command("sort", async (ctx) => {
   try {
     if (Number(ctx.chat.id) !== ADMIN_CHAT_ID) {
-      console.log(`Попытка вызова /sort вне админ-чата: ${ctx.from.id}, chatId: ${ctx.chat.id}`);
-      const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+      const sentMsg = await ctx.reply(
+        "❌ Эта команда доступна только в чате администраторов."
+      );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
       await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       return;
     }
 
-    console.log("Выполняется команда /sort");
     await sortAndUpdateCards(ctx);
     const sentMsg = await ctx.reply(
       "✅ Вопросы отсортированы: отвеченные (🟢) сверху, неотвеченные (🔴) снизу."
     );
     await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
-    console.log("Команда /sort выполнена успешно");
   } catch (error) {
     console.error("Ошибка в команде /sort:", error);
     const sentMsg = await ctx.reply("❌ Ошибка при сортировке вопросов.");
@@ -546,8 +706,9 @@ bot.command("sort", async (ctx) => {
 bot.command("help", async (ctx) => {
   try {
     if (Number(ctx.chat.id) !== ADMIN_CHAT_ID) {
-      console.log(`Попытка вызова /help вне админ-чата: ${ctx.from.id}, chatId: ${ctx.chat.id}`);
-      const sentMsg = await ctx.reply("❌ Эта команда доступна только в чате администраторов.");
+      const sentMsg = await ctx.reply(
+        "❌ Эта команда доступна только в чате администраторов."
+      );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
       await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       return;
@@ -561,7 +722,6 @@ bot.command("help", async (ctx) => {
   `;
     const sentMsg = await ctx.reply(helpMessage);
     await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
-    console.log("Команда /help выполнена");
   } catch (error) {
     console.error("Ошибка в команде /help:", error);
     const sentMsg = await ctx.reply("❌ Ошибка при выполнении команды /help.");
@@ -575,43 +735,81 @@ async function createAdminCard(ctx, userId, questionIndex) {
     const profile = userProfiles.get(userId);
     const question = profile.questions[questionIndex];
 
+    // Формируем текст чата с медиа
     const chatText = (question.chat || [])
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .slice(-10)
-      .map((item) => {
+      .map(async (item) => {
         const prefix = item.type === "question" ? "👨‍🦰" : "🤖";
         let content;
+
         switch (item.contentType) {
           case "text":
             content = item.content;
             break;
           case "photo":
             content = `📸 Фото${item.caption ? `: ${item.caption}` : ""}`;
+            // Отправляем фото в карточку
+            await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Фото"} (${
+                item.timestamp
+              })`,
+            });
             break;
           case "video":
             content = `📹 Видео${item.caption ? `: ${item.caption}` : ""}`;
+            await ctx.telegram.sendVideo(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Видео"} (${
+                item.timestamp
+              })`,
+            });
             break;
           case "document":
             content = `📄 Документ${item.caption ? `: ${item.caption}` : ""}`;
+            await ctx.telegram.sendDocument(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Документ"} (${
+                item.timestamp
+              })`,
+            });
             break;
           case "audio":
             content = `🎵 Аудио${item.caption ? `: ${item.caption}` : ""}`;
+            await ctx.telegram.sendAudio(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Аудио"} (${
+                item.timestamp
+              })`,
+            });
             break;
           case "voice":
-            content = `🎙 Голосовое сообщение${item.caption ? `: ${item.caption}` : ""}`;
+            content = `🎙 Голосовое сообщение${
+              item.caption ? `: ${item.caption}` : ""
+            }`;
+            await ctx.telegram.sendVoice(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Голосовое"} (${
+                item.timestamp
+              })`,
+            });
             break;
           case "sticker":
             content = `😀 Стикер`;
+            await ctx.telegram.sendSticker(ADMIN_CHAT_ID, item.content);
             break;
           case "animation":
             content = `🎞 Анимация${item.caption ? `: ${item.caption}` : ""}`;
+            await ctx.telegram.sendAnimation(ADMIN_CHAT_ID, item.content, {
+              caption: `${prefix} ${item.caption || "Анимация"} (${
+                item.timestamp
+              })`,
+            });
             break;
           default:
             content = `Неизвестный тип контента`;
         }
         return `<i>${item.timestamp}</i>\n${prefix} ${content}\n---`;
-      })
-      .join("\n");
+      });
+
+    // Ждем завершения всех отправок медиа
+    const chatTextResolved = (await Promise.all(chatText)).join("\n");
 
     const status = question.answered ? "🟢 Отвечено" : "🔴 Ожидает ответа";
     const statusEmoji = question.answered ? "🟢" : "🔴";
@@ -626,7 +824,7 @@ async function createAdminCard(ctx, userId, questionIndex) {
 <b>📊 Статус:</b> ${status}
 
 <b>💬 Чат:</b>
-${chatText || "Нет сообщений"}
+${chatTextResolved || "Нет сообщений"}
 
 #USER${userId}
     `;
@@ -646,18 +844,6 @@ ${chatText || "Нет сообщений"}
 
     question.adminMsgId = sent.message_id;
     userProfiles.set(userId, profile);
-
-    // Пересылаем все медиа (фото, видео, документы и т.д.) в хронологическом порядке
-    const recentMedia = (question.chat || [])
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-      .slice(-10)
-      .filter(item => item.contentType !== "text" && item.message_id);
-
-    for (const item of recentMedia) {
-      await ctx.telegram.copyMessage(ADMIN_CHAT_ID, item.type === "question" ? userId : ADMIN_CHAT_ID, item.message_id, {
-        caption: item.caption ? `${item.type === "question" ? "👨‍🦰" : "🤖"} ${item.caption}` : undefined,
-      });
-    }
   } catch (error) {
     console.error(`Ошибка создания карточки для ${userId}:`, error);
   }
@@ -675,7 +861,8 @@ async function sortAndUpdateCards(ctx) {
           userId,
           questionIndex: index,
           question,
-          timestamp: question.chat[question.chat.length - 1]?.timestamp || formatDate(),
+          timestamp:
+            question.chat[question.chat.length - 1]?.timestamp || formatDate(),
         });
       });
     }
@@ -685,7 +872,6 @@ async function sortAndUpdateCards(ctx) {
       return;
     }
 
-    // Сортировка: отвеченные сверху, неотвеченные снизу
     allQuestions.sort((a, b) => {
       if (a.question.answered !== b.question.answered) {
         return a.question.answered ? -1 : 1;
@@ -693,7 +879,6 @@ async function sortAndUpdateCards(ctx) {
       return new Date(b.timestamp) - new Date(a.timestamp);
     });
 
-    // Удаление старых карточек
     for (const { userId, questionIndex } of allQuestions) {
       const profile = userProfiles.get(userId);
       const question = profile.questions[questionIndex];
@@ -711,7 +896,6 @@ async function sortAndUpdateCards(ctx) {
       }
     }
 
-    // Создание новых карточек в отсортированном порядке
     for (const { userId, questionIndex } of allQuestions) {
       await createAdminCard(ctx, userId, questionIndex);
     }
