@@ -161,20 +161,42 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
 // Обработка контакта
 bot.on("contact", async (ctx) => {
   try {
-    const state = userStates.get(ctx.from.id);
-    if (!state || state.step !== "waiting_phone") return;
+    const userId = ctx.from.id;
+    const state = userStates.get(userId);
+    const profile = userProfiles.get(userId) || { questions: [], lang: "uz" };
 
-    const profile = userProfiles.get(ctx.from.id);
-    profile.phone = ctx.message.contact.phone_number;
-    userProfiles.set(ctx.from.id, profile);
-    userStates.set(ctx.from.id, { step: "waiting_question" });
+    if (!state || state.step !== "waiting_phone") {
+      await ctx.reply(
+        profile.lang === "uz"
+          ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
+          : "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
+      );
+      return;
+    }
+
+    const phoneNumber = ctx.message.contact.phone_number;
+    if (!/^\+998\d{9}$/.test(phoneNumber)) {
+      await ctx.reply(
+        profile.lang === "uz"
+          ? "❌ Telefon raqami +998 bilan boshlanishi va 9 ta raqamdan iborat bo‘lishi kerak."
+          : "❌ Номер телефона должен начинаться с +998 и содержать 9 цифр."
+      );
+      return;
+    }
+
+    profile.phone = phoneNumber;
+    userProfiles.set(userId, profile);
+    userStates.set(userId, { step: "waiting_question" });
 
     await ctx.reply(
       profile.lang === "uz"
-        ? "Savolingizni yozing yoki fayl yuboring:"
-        : "Напишите свой вопрос или отправьте файл:",
+        ? "✅ Telefon raqami qabul qilindi. Savolingizni yozing yoki fayl yuboring:"
+        : "✅ Номер телефона принят. Напишите свой вопрос или отправьте файл:",
       Markup.removeKeyboard()
     );
+
+    // Удаляем сообщение с контактом
+    await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
   } catch (error) {
     console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
     await ctx.reply(
@@ -247,8 +269,8 @@ bot.on("text", async (ctx) => {
 
       await ctx.reply(
         lang === "uz"
-          ? "Telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
-          : "Отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:",
+          ? "Telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring. Agar tugma ishlamasa, +998901234567 formatida qo‘lda kiriting:"
+          : "Отправьте номер телефона через кнопку '📱 Отправить номер'. Если кнопка недоступна, введите вручную в формате +998901234567:",
         Markup.inlineKeyboard([
           Markup.button.contactRequest(
             lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
@@ -256,7 +278,18 @@ bot.on("text", async (ctx) => {
         ])
       );
     } else if (state.step === "waiting_phone") {
+      // Проверяем, является ли сообщение попыткой ввода номера телефона
       if (/^\+998\d{9}$/.test(text)) {
+        // Разрешаем ручной ввод только если Telegram-клиент не поддерживает кнопку
+        if (ctx.message.via_bot || ctx.message.source === "web") {
+          await ctx.reply(
+            lang === "uz"
+              ? "❌ Iltimos, telefon raqamingizni faqat '📱 Raqamni yuborish' tugmasi orqali yuboring."
+              : "❌ Пожалуйста, отправьте номер телефона только через кнопку '📱 Отправить номер'."
+          );
+          return;
+        }
+
         profile.phone = text;
         profile.lang = lang;
         userProfiles.set(userId, profile);
@@ -264,20 +297,18 @@ bot.on("text", async (ctx) => {
 
         await ctx.reply(
           lang === "uz"
-            ? "Savolingizni yozing yoki fayl yuboring:"
-            : "Напишите свой вопрос или отправьте файл:",
+            ? "✅ Telefon raqami qabul qilindi. Savolingizni yozing yoki fayl yuboring:"
+            : "✅ Номер телефона принят. Напишите свой вопрос или отправьте файл:",
           Markup.removeKeyboard()
         );
+
+        // Удаляем сообщение с номером
+        await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
       } else {
         await ctx.reply(
           lang === "uz"
             ? "❌ Iltimos, telefon raqamingizni '📱 Raqamni yuborish' tugmasi orqali yuboring yoki +998901234567 formatida qo‘lda kiriting:"
-            : "❌ Пожалуйста, отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:",
-          Markup.inlineKeyboard([
-            Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-            ),
-          ])
+            : "❌ Пожалуйста, отправьте номер телефона через кнопку '📱 Отправить номер' или введите вручную в формате +998901234567:"
         );
       }
     } else if (state.step === "waiting_question" && text) {
@@ -316,6 +347,7 @@ bot.on("text", async (ctx) => {
           : "✅ Вопрос принят. Скоро ответим."
       );
       await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+      await autoDeleteMessage(ctx, ctx.chat.id, ctx.message.message_id, 5000);
     } else {
       await ctx.reply(
         lang === "uz"
