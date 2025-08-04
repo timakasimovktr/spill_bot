@@ -141,23 +141,12 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
         ? "Отправьте номер телефона:"
         : "Введите своё имя:",
       profile.name
-        ? Markup.keyboard([
-            [
-              Markup.button.contactRequest(
-                lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-              ),
-            ],
-            [
-              Markup.button.callback(
-                lang === "uz"
-                  ? "📞 Raqamni yuborish (knopka)"
-                  : "📞 Отправить номер (кнопка)",
-                "send_phone"
-              ),
-            ],
+        ? Markup.inlineKeyboard([
+            Markup.button.contactRequest(
+              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+              true
+            ),
           ])
-            .resize()
-            .oneTime()
         : Markup.removeKeyboard()
     );
   } catch (error) {
@@ -167,34 +156,6 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
         ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
         : "❌ Произошла ошибка. Попробуйте снова."
     );
-  }
-});
-
-// Обработка callback для кнопки отправки номера
-bot.action("send_phone", async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const profile = userProfiles.get(userId);
-    const lang = profile?.lang || "uz";
-
-    await ctx.reply(
-      lang === "uz"
-        ? "Telefon raqamingizni yuboring:"
-        : "Отправьте номер телефона:",
-      Markup.keyboard([
-        [
-          Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-          ),
-        ],
-      ])
-        .resize()
-        .oneTime()
-    );
-    await ctx.answerCbQuery();
-  } catch (error) {
-    console.error(`Ошибка в action send_phone для ${ctx.from.id}:`, error);
-    await ctx.answerCbQuery("❌ Произошла ошибка.");
   }
 });
 
@@ -213,18 +174,7 @@ bot.on("contact", async (ctx) => {
       profile.lang === "uz"
         ? "Savolingizni yozing yoki fayl yuboring:"
         : "Напишите свой вопрос или отправьте файл:",
-      Markup.keyboard([
-        [
-          Markup.button.callback(
-            profile.lang === "uz"
-              ? "📞 Raqamni qayta yuborish"
-              : "📞 Отправить номер снова",
-            "send_phone_again"
-          ),
-        ],
-      ])
-        .resize()
-        .oneTime()
+      Markup.removeKeyboard()
     );
   } catch (error) {
     console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
@@ -233,39 +183,6 @@ bot.on("contact", async (ctx) => {
         ? "❌ Xatolik yuz berdi. Qaytadan urinib ko‘ring."
         : "❌ Произошла ошибка. Попробуйте снова."
     );
-  }
-});
-
-// Обработка callback для повторной отправки номера
-bot.action("send_phone_again", async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const profile = userProfiles.get(userId);
-    const lang = profile?.lang || "uz";
-
-    userStates.set(userId, { step: "waiting_phone" });
-
-    await ctx.reply(
-      lang === "uz"
-        ? "Telefon raqamingizni yuboring:"
-        : "Отправьте номер телефона:",
-      Markup.keyboard([
-        [
-          Markup.button.contactRequest(
-            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-          ),
-        ],
-      ])
-        .resize()
-        .oneTime()
-    );
-    await ctx.answerCbQuery();
-  } catch (error) {
-    console.error(
-      `Ошибка в action send_phone_again для ${ctx.from.id}:`,
-      error
-    );
-    await ctx.answerCbQuery("❌ Произошла ошибка.");
   }
 });
 
@@ -333,23 +250,12 @@ bot.on("text", async (ctx) => {
         lang === "uz"
           ? "Telefon raqamingizni yuboring:"
           : "Отправьте номер телефона:",
-        Markup.keyboard([
-          [
-            Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-            ),
-          ],
-          [
-            Markup.button.callback(
-              lang === "uz"
-                ? "📞 Raqamni yuborish (knopka)"
-                : "📞 Отправить номер (кнопка)",
-              "send_phone"
-            ),
-          ],
+        Markup.inlineKeyboard([
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+            true
+          ),
         ])
-          .resize()
-          .oneTime()
       );
     } else if (state.step === "waiting_phone" && /^\+998\d{9}$/.test(text)) {
       profile.phone = text;
@@ -361,41 +267,19 @@ bot.on("text", async (ctx) => {
         lang === "uz"
           ? "Savolingizni yozing yoki fayl yuboring:"
           : "Напишите свой вопрос или отправьте файл:",
-        Markup.keyboard([
-          [
-            Markup.button.callback(
-              lang === "uz"
-                ? "📞 Raqamni qayta yuborish"
-                : "📞 Отправить номер снова",
-              "send_phone_again"
-            ),
-          ],
-        ])
-          .resize()
-          .oneTime()
+        Markup.removeKeyboard()
       );
     } else if (state.step === "waiting_phone") {
       await ctx.reply(
         lang === "uz"
           ? "Iltimos, telefon raqamingizni +998901234567 formatida kiriting:"
           : "Пожалуйста, введите номер телефона в формате +998901234567:",
-        Markup.keyboard([
-          [
-            Markup.button.contactRequest(
-              lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер"
-            ),
-          ],
-          [
-            Markup.button.callback(
-              lang === "uz"
-                ? "📞 Raqamni yuborish (knopka)"
-                : "📞 Отправить номер (кнопка)",
-              "send_phone"
-            ),
-          ],
+        Markup.inlineKeyboard([
+          Markup.button.contactRequest(
+            lang === "uz" ? "📱 Raqamni yuborish" : "📱 Отправить номер",
+            true
+          ),
         ])
-          .resize()
-          .oneTime()
       );
     } else if (state.step === "waiting_question" && text) {
       if (!profile.questions.length) {
@@ -608,37 +492,31 @@ function hasUnansweredQuestions(chat) {
 bot.on("callback_query", async (ctx) => {
   try {
     const data = ctx.callbackQuery.data;
-    if (
-      !data.startsWith("reply_") &&
-      data !== "send_phone" &&
-      data !== "send_phone_again"
-    ) {
+    if (!data.startsWith("reply_")) {
       await ctx.answerCbQuery("❌ Неверное действие.");
       return;
     }
 
-    if (data.startsWith("reply_")) {
-      const [_, userId, questionIndex] = data.split("_");
-      const targetUserId = Number(userId);
-      const questionIndexNum = Number(questionIndex);
-      const profile = userProfiles.get(targetUserId);
+    const [_, userId, questionIndex] = data.split("_");
+    const targetUserId = Number(userId);
+    const questionIndexNum = Number(questionIndex);
+    const profile = userProfiles.get(targetUserId);
 
-      if (!profile || !profile.questions[questionIndexNum]) {
-        await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
-        return;
-      }
-
-      pendingReplies.set(ctx.from.id, {
-        targetUserId,
-        questionIndex: questionIndexNum,
-      });
-
-      await ctx.answerCbQuery();
-      const sentMsg = await ctx.reply(
-        "✍️ Напишите ответ или отправьте файл пользователю:"
-      );
-      await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
+    if (!profile || !profile.questions[questionIndexNum]) {
+      await ctx.answerCbQuery("❗ Вопрос или пользователь не найден.");
+      return;
     }
+
+    pendingReplies.set(ctx.from.id, {
+      targetUserId,
+      questionIndex: questionIndexNum,
+    });
+
+    await ctx.answerCbQuery();
+    const sentMsg = await ctx.reply(
+      "✍️ Напишите ответ или отправьте файл пользователю:"
+    );
+    await autoDeleteMessage(ctx, ctx.chat.id, sentMsg.message_id, 5000);
   } catch (error) {
     console.error(`Ошибка в callback_query от ${ctx.from.id}:`, error);
     await ctx.answerCbQuery("❌ Произошла ошибка.");
@@ -749,7 +627,6 @@ async function createAdminCard(ctx, userId, questionIndex) {
             break;
           case "photo":
             content = `📸 Фото${item.caption ? `: ${item.caption}` : ""}`;
-            // Отправляем фото в карточку
             await ctx.telegram.sendPhoto(ADMIN_CHAT_ID, item.content, {
               caption: `${prefix} ${item.caption || "Фото"} (${
                 item.timestamp
