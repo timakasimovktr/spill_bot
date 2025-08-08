@@ -161,6 +161,7 @@ IT-компания "OLTIN ASR DBT" совместно с "Uzum Bank" предс
 });
 
 // Обработка контакта
+// Обработка контакта
 bot.on("contact", async (ctx) => {
   try {
     const state = userStates.get(ctx.from.id);
@@ -171,12 +172,27 @@ bot.on("contact", async (ctx) => {
     userProfiles.set(ctx.from.id, profile);
     userStates.set(ctx.from.id, { step: "waiting_question" });
 
+    // Кнопка присоединиться к группе
+    await ctx.reply(
+      profile.lang === "uz"
+        ? "📢 Guruhimizga qo‘shiling va yangiliklardan xabardor bo‘ling:"
+        : "📢 Присоединяйтесь к нашей группе и будьте в курсе новостей:",
+      Markup.inlineKeyboard([
+        Markup.button.url(
+          profile.lang === "uz" ? "🔗 Guruhga qo‘shilish" : "🔗 Присоединиться к группе",
+          "https://t.me/smartdunyopaygroup"
+        )
+      ])
+    );
+
+    // Переход к вопросу
     await ctx.reply(
       profile.lang === "uz"
         ? "Savolingizni yozing yoki fayl yuboring:"
         : "Напишите свой вопрос или отправьте файл:",
       Markup.removeKeyboard()
     );
+
   } catch (error) {
     console.error(`Ошибка при обработке контакта для ${ctx.from.id}:`, error);
     await ctx.reply(
@@ -186,6 +202,7 @@ bot.on("contact", async (ctx) => {
     );
   }
 });
+
 
 // Обработка текста
 bot.on("text", async (ctx) => {
