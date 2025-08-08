@@ -2,7 +2,7 @@ const { Telegraf, Markup } = require("telegraf");
 const path = require("path");
 
 const bot = new Telegraf("8147782034:AAEeS1tXZxeR919ZECGl9aEI0-AOlQrTlM4");
-const ADMIN_CHAT_ID = -4742476473;
+const ADMIN_CHAT_ID = -1002786167789;
 
 const userStates = new Map();
 const userProfiles = new Map();
